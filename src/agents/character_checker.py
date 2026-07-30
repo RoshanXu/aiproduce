@@ -117,7 +117,7 @@ class CharacterCheckerAgent(AgentBase):
         # 检查是否有不在资产库中的角色
         unknown = char_names_in_script - char_names_in_assets
         blocking = []
-        if unknown:
+        if unknown and char_names_in_assets:  # 仅当资产库非空时才报告
             blocking.append({
                 "char_id": "unknown",
                 "field": "existence",
