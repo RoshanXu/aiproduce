@@ -88,13 +88,35 @@ class WorkflowRunner:
         # Save results
         self._save_results(project_id, results)
 
+        # ─── N04: 改编策划总纲 ───────────────────
+        print("\n[N04] 改编策划总纲生成...")
+        n04_result = self._run_n04(project_id=project_id, model_name=model_name)
+        self.state.set_node_status("N04", NodeStatus.PASSED)
+        self.state.set_node_output("N04", n04_result)
+        results["N04"] = n04_result
+        bp = n04_result.get("blueprint", {})
+        sell = bp.get("core_positioning", {}).get("one_line_sell", "待查看")
+        print(f"  ✅ 策划总纲完成: {sell}")
+
+        # ─── N07: 分集大纲 ───────────────────
+        print("\n[N07] 全剧分集大纲生成...")
+        n07_result = self._run_n07(project_id=project_id, model_name=model_name)
+        self.state.set_node_status("N07", NodeStatus.PASSED)
+        self.state.set_node_output("N07", n07_result)
+        results["N07"] = n07_result
+        total_ep = n07_result.get("total_episodes", 0)
+        print(f"  ✅ 分集大纲完成: {total_ep} 集")
+
+        # Save updated results
+        self._save_results(project_id, results)
+
         # Print cost report
         token_counter.print_report()
 
         print("\n" + "=" * 60)
-        print("✅ Thin Slice 阶段1 (N01→N02→N03) 执行完成")
+        print("✅ Thin Slice 阶段1+2 (N01→N02→N03→N04→N07) 执行完成")
         print(f"   项目ID: {project_id}")
-        print(f"   后续节点 N04→N07→N09→N11→N12 将在阶段2-3实现")
+        print(f"   后续节点 N09→N11→N12 将在阶段3实现")
         print("=" * 60 + "\n")
 
         return {"project_id": project_id, "results": results}
@@ -183,6 +205,18 @@ class WorkflowRunner:
 
         return issues
 
+    def _run_n04(self, project_id: str, model_name: str) -> dict:
+        """N04 改编策划总纲生成"""
+        from src.agents.adaptation_planner import AdaptationPlannerAgent
+        agent = AdaptationPlannerAgent(model_name=model_name)
+        return agent.execute(project_id=project_id)
+
+    def _run_n07(self, project_id: str, model_name: str) -> dict:
+        """N07 分集大纲生成"""
+        from src.agents.episode_outliner import EpisodeOutlinerAgent
+        agent = EpisodeOutlinerAgent(model_name=model_name)
+        return agent.execute(project_id=project_id)
+
     def _save_results(self, project_id: str, results: dict):
         """保存阶段结果到工作区"""
         output_dir = Path("workspace/projects") / project_id / "work" / "deconstruction"
@@ -212,13 +246,25 @@ class WorkflowRunner:
             encoding="utf-8",
         )
 
+        # 保存 N04 策划总纲
+        n04 = results.get("N04", {})
+        if n04:
+            planning_dir = Path("workspace/projects") / project_id / "work" / "planning"
+            planning_dir.mkdir(parents=True, exist_ok=True)
+
+        # 保存 N07 分集大纲
+        n07 = results.get("N07", {})
+        if n07:
+            outlines_dir = Path("workspace/projects") / project_id / "work" / "outlines"
+            outlines_dir.mkdir(parents=True, exist_ok=True)
+
         # 保存完整结果摘要
         summary = {
             "project_id": project_id,
-            "completed_nodes": ["N01", "N02", "N03"],
+            "completed_nodes": ["N01", "N02", "N03", "N04", "N07"],
             "timestamp": datetime.now().isoformat(),
         }
-        (output_dir / "phase1_summary.json").write_text(
+        (output_dir / "phase2_summary.json").write_text(
             json.dumps(summary, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
