@@ -30,8 +30,11 @@ class WorkflowRunner:
         target_episodes: int = 24,
         episode_duration: int = 45,
         genre: str = "古装",
-        model_name: str = "claude-sonnet-5",
+        model_name: str = None,
     ) -> dict:
+        if model_name is None:
+            import os
+            model_name = os.getenv("DEFAULT_MODEL", "claude-sonnet-5")
         """运行 Thin Slice 验证链路：N01→N02→N03→N04→N07→N09→N11→N12
 
         当前阶段1仅实现 N01→N02→N03。

@@ -12,6 +12,7 @@ Usage:
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -81,6 +82,7 @@ class AIproduceWebUI:
                 adaptation_format=adaptation_format,
                 target_episodes=target_episodes,
                 episode_duration=episode_duration,
+                model_name=os.getenv("DEFAULT_MODEL", "claude-sonnet-5"),
             )
 
             log_text += "\n✅ Thin Slice 执行完成!\n"
