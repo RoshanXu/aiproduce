@@ -46,32 +46,14 @@ class AIproduceWebUI:
         novel_path = upload_dir / Path(novel_file.name).name
         novel_path.write_bytes(Path(novel_file.name).read_bytes())
 
-        # 初始化项目
-        progress(0.2, desc="初始化项目...")
-        from src.agents.scheduler import SchedulerAgent
+        # 运行 Thin Slice（内部自动初始化项目）
+        progress(0.2, desc="运行 Thin Slice 链路...")
 
-        agent = SchedulerAgent()
-        result = agent.execute(
-            action="init",
-            project_name=project_name,
-            source_file_path=str(novel_path),
-            adaptation_format=adaptation_format,
-            target_episodes=target_episodes,
-            episode_duration=episode_duration,
-        )
-
-        self.current_project_id = result["project_id"]
-        self.current_project_dir = Path("workspace/projects") / self.current_project_id
-
-        log_text = f"✅ 项目初始化完成\n"
-        log_text += f"   项目ID: {self.current_project_id}\n"
+        log_text = f"🔄 开始运行 Thin Slice 链路...\n"
         log_text += f"   项目名: {project_name}\n"
-        log_text += f"   工作目录: {self.current_project_dir}\n"
+        log_text += f"   原著: {novel_path.name}\n"
+        log_text += f"   改编: {adaptation_format} | {target_episodes}集 × {episode_duration}分钟\n"
         yield log_text, "", "", "", ""
-
-        # 运行 Thin Slice
-        progress(0.3, desc="运行 Thin Slice 链路...")
-        yield log_text + "\n🔄 开始运行 Thin Slice 链路...\n", "", "", "", ""
 
         try:
             from src.workflow.runner import WorkflowRunner
@@ -85,10 +67,13 @@ class AIproduceWebUI:
                 model_name=os.getenv("DEFAULT_MODEL", "claude-sonnet-5"),
             )
 
-            log_text += "\n✅ Thin Slice 执行完成!\n"
-            log_text += f"   项目ID: {result['project_id']}\n"
+            # 用 runner 返回的项目ID
+            self.current_project_id = result["project_id"]
+            self.current_project_dir = Path("workspace/projects") / self.current_project_id
 
-            # 提取结果摘要
+            log_text += "\n✅ Thin Slice 执行完成!\n"
+            log_text += f"   项目ID: {self.current_project_id}\n"
+
             results = result.get("results", {})
             for node_id in ["N02", "N03", "N04", "N07", "N09", "N11", "N12", "N13", "N14"]:
                 data = results.get(node_id, {})
@@ -101,19 +86,17 @@ class AIproduceWebUI:
                         v = f"{len(v)} 个"
                     log_text += f"   {node_id}: {v}\n"
 
+            # 加载结果到各 Tab
+            progress(0.9, desc="加载结果...")
+            char_text, world_text, timeline_text = self.load_assets()
+            script_text = self.load_scripts()
+            yield log_text, char_text, world_text, timeline_text, script_text
+
         except Exception as e:
             log_text += f"\n❌ 执行失败: {e}\n"
             import traceback
             log_text += traceback.format_exc()
-
-        yield log_text, "", "", "", ""
-
-        # 加载结果
-        progress(0.9, desc="加载结果...")
-        char_text, world_text, timeline_text = self.load_assets()
-        script_text = self.load_scripts()
-
-        yield log_text, char_text, world_text, timeline_text, script_text
+            yield log_text, "", "", "", ""
 
     # ─── 数据加载 ────────────────────────────────
 
