@@ -96,7 +96,7 @@ class AgentBase(ABC):
                     temperature=self.temperature,
                     max_tokens=8192,
                     openai_api_key=api_key,
-                    openai_api_base=base_url,
+                    base_url=base_url,
                 )
             elif "gpt" in model_lower or "openai" in model_lower:
                 self._llm = ChatOpenAI(

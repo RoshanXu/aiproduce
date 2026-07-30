@@ -4,6 +4,7 @@
 """
 
 import logging
+import sys
 import time
 from pathlib import Path
 from datetime import datetime
@@ -20,7 +21,16 @@ class NodeLogger:
         self._logger = logging.getLogger("aiproduce")
         self._logger.setLevel(logging.DEBUG)
 
-        # 文件 handler
+        # 控制台 handler（可见的）
+        if not any(isinstance(h, logging.StreamHandler) for h in self._logger.handlers):
+            ch = logging.StreamHandler(sys.stdout)
+            ch.setLevel(logging.INFO)
+            ch.setFormatter(logging.Formatter(
+                "%(levelname)-8s | %(name)s | %(message)s"
+            ))
+            self._logger.addHandler(ch)
+
+        # 文件 handler（完整日志）
         fh = logging.FileHandler(
             self.log_dir / f"aiproduce_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log",
             encoding="utf-8",

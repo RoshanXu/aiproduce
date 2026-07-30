@@ -33,6 +33,9 @@ class SchedulerAgent(AgentBase):
         """N01/N15/N16/N21: 项目调度"""
         action = kwargs.pop("action", "init")
         if action == "init":
+            # 注入 self.model_name（从 .env DEFAULT_MODEL 读取）
+            if "model_name" not in kwargs:
+                kwargs["model_name"] = self.model_name
             return self._init_project(**kwargs)
         elif action == "archive_scene":
             return self._archive_scene(**kwargs)
