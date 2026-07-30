@@ -75,7 +75,13 @@ class AIproduceWebUI:
         try:
             from src.workflow.runner import WorkflowRunner
             runner = WorkflowRunner()
-            result = runner.run_thin_slice(self.current_project_id)
+            result = runner.run_thin_slice(
+                project_name=project_name,
+                source_file_path=str(novel_path),
+                adaptation_format=adaptation_format,
+                target_episodes=target_episodes,
+                episode_duration=episode_duration,
+            )
 
             log_text += "\n✅ Thin Slice 执行完成!\n"
             for key, value in result.items():
