@@ -72,31 +72,34 @@ class AgentBase(ABC):
         """延迟初始化 LLM 实例
 
         支持:
-        - Claude 系列 (langchain-anthropic / 原生 anthropic SDK)
-        - OpenAI / DeepSeek / 其他 OpenAI 兼容接口 (langchain-openai)
+        - DeepSeek → 原生 anthropic SDK (base_url 指向 DeepSeek)
+        - Claude → langchain-anthropic 或 原生 anthropic SDK
+        - OpenAI → langchain-openai
         """
         if self._llm is not None:
             return self._llm
 
         model_lower = self.model_name.lower()
 
-        if HAS_LANGCHAIN:
+        # ── DeepSeek: 原生 anthropic SDK，不改模型名 ─────
+        if "deepseek" in model_lower:
+            if HAS_ANTHROPIC:
+                self._llm = anthropic.Anthropic(
+                    api_key=os.getenv("DEEPSEEK_API_KEY"),
+                    base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/anthropic"),
+                )
+            else:
+                raise RuntimeError(
+                    "DeepSeek 需要 anthropic SDK。请运行: pip install anthropic"
+                )
+
+        # ── Claude / OpenAI: langchain 或 原生 SDK ──────
+        elif HAS_LANGCHAIN:
             if "claude" in model_lower:
                 self._llm = ChatAnthropic(
                     model=self.model_name,
                     temperature=self.temperature,
                     max_tokens=8192,
-                )
-            elif "deepseek" in model_lower:
-                # DeepSeek 使用 OpenAI 兼容接口
-                api_key = os.getenv("DEEPSEEK_API_KEY", "")
-                base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
-                self._llm = ChatOpenAI(
-                    model=self.model_name,
-                    temperature=self.temperature,
-                    max_tokens=8192,
-                    openai_api_key=api_key,
-                    base_url=base_url,
                 )
             elif "gpt" in model_lower or "openai" in model_lower:
                 self._llm = ChatOpenAI(
@@ -105,14 +108,12 @@ class AgentBase(ABC):
                     max_tokens=8192,
                 )
             else:
-                # 未知模型，尝试用 Claude 兜底
                 self._llm = ChatAnthropic(
                     model="claude-sonnet-5",
                     temperature=self.temperature,
                     max_tokens=8192,
                 )
         elif HAS_ANTHROPIC and "claude" in model_lower:
-            # 使用原生 anthropic SDK（轻量降级方案）
             self._llm = anthropic.Anthropic(
                 api_key=os.getenv("ANTHROPIC_API_KEY"),
             )
