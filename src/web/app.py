@@ -238,7 +238,7 @@ def create_ui() -> gr.Blocks:
     """创建 Gradio UI"""
     web = AIproduceWebUI()
 
-    with gr.Blocks(title="AIproduce - 小说改剧本", theme=gr.themes.Soft()) as app:
+    with gr.Blocks(title="AIproduce - 小说改剧本") as app:
         gr.Markdown("""
         # 🎬 AIproduce — 小说改剧本智能体系统
         上传小说 → 自动运行 Thin Slice 链路 → 查看解构结果与剧本预览
@@ -347,7 +347,7 @@ def main():
 
     app = create_ui()
     app.launch(
-        server_name="127.0.0.1",
+        server_name="0.0.0.0",
         server_port=7860,
         share=False,
         show_error=True,
