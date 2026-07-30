@@ -84,16 +84,20 @@ class AIproduceWebUI:
             )
 
             log_text += "\n✅ Thin Slice 执行完成!\n"
-            for key, value in result.items():
-                if isinstance(value, (int, float, str)):
-                    log_text += f"   {key}: {value}\n"
+            log_text += f"   项目ID: {result['project_id']}\n"
 
-            # 生成验证报告
-            report = runner._generate_validation_report(result)
-            log_text += f"\n📊 验证报告:\n"
-            for h in report.get("hypotheses", []):
-                status = "✅" if h.get("status") == "PASS" else "❌"
-                log_text += f"   {status} {h.get('id')}: {h.get('description', '')[:60]}\n"
+            # 提取结果摘要
+            results = result.get("results", {})
+            for node_id in ["N02", "N03", "N04", "N07", "N09", "N11", "N12", "N13", "N14"]:
+                data = results.get(node_id, {})
+                if isinstance(data, list):
+                    log_text += f"   {node_id}: {len(data)} 项\n"
+                elif isinstance(data, dict):
+                    v = data.get("verdict", data.get("chunk_count",
+                         data.get("characters", data.get("scene_count", ""))))
+                    if isinstance(v, list):
+                        v = f"{len(v)} 个"
+                    log_text += f"   {node_id}: {v}\n"
 
         except Exception as e:
             log_text += f"\n❌ 执行失败: {e}\n"
