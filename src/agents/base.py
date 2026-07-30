@@ -16,6 +16,15 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
 
+# 自动加载 .env 文件
+try:
+    from dotenv import load_dotenv
+    _env_file = Path(__file__).resolve().parent.parent.parent / ".env"
+    if _env_file.exists():
+        load_dotenv(_env_file)
+except ImportError:
+    pass
+
 # Lazy imports: langchain 可能存在版本兼容问题，降级使用 anthropic SDK
 try:
     from langchain_anthropic import ChatAnthropic

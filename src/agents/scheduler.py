@@ -1,5 +1,6 @@
 """N01/N15/N16/N21 项目调度Agent"""
 
+import os
 import uuid
 import shutil
 from pathlib import Path
@@ -23,7 +24,9 @@ class SchedulerAgent(AgentBase):
     node_id = "N01"
     node_name = "项目调度Agent"
 
-    def __init__(self, model_name: str = "claude-sonnet-5"):
+    def __init__(self, model_name: str = None):
+        if model_name is None:
+            model_name = os.getenv("DEFAULT_MODEL", "claude-sonnet-5")
         super().__init__(model_name=model_name, temperature=0.3)
 
     def execute(self, **kwargs) -> dict:

@@ -1,14 +1,13 @@
 # AIproduce Docker Compose 配置
 #
+# 首次使用:
+#   1. cp .env.example .env
+#   2. 编辑 .env 填入 API Key
+#   3. docker compose up -d
+#
 # 启动 Web UI:       docker compose up -d
 # 运行 Thin Slice:   docker compose run --rm aiproduce run --thin-slice --novel /app/tests/fixtures/sample_novel_chapter.md --name "Docker测试"
 # 交互式向导:        docker compose run --rm aiproduce wizard
-# 查看状态:          docker compose run --rm aiproduce status
-#
-# API Key（可选，不设置则使用规则降级模式）:
-#   set ANTHROPIC_API_KEY=sk-ant-xxx  # Windows
-#   export ANTHROPIC_API_KEY=sk-ant-xxx  # macOS/Linux
-#   （或者在下方 environment 中取消注释并填入）
 
 services:
   aiproduce:
@@ -20,18 +19,13 @@ services:
     ports:
       - "7860:7860"
     volumes:
-      # 持久化工作区（项目数据、生成结果、日志）
+      # 持久化工作区
       - aiproduce_workspace:/app/workspace
-      # 可选：挂载本地小说文件目录，方便上传
+      # 挂载小说文件目录
       - ./tests/fixtures:/app/tests/fixtures:ro
-    environment:
-      - PYTHONUNBUFFERED=1
-      # 选择一个大模型填入 Key 即可：
-      # - ANTHROPIC_API_KEY=sk-ant-xxx        # Claude 系列
-      # - DEEPSEEK_API_KEY=sk-xxx             # DeepSeek 系列
-      # - OPENAI_API_KEY=sk-xxx               # OpenAI 系列
+      # 挂载 .env 文件（容器内自动加载）
+      - ./.env:/app/.env:ro
     restart: unless-stopped
-    # 默认启动 Web UI，修改 command 可切换模式：
     command: web --port 7860
 
 volumes:
