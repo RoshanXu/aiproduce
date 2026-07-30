@@ -192,10 +192,15 @@ class AgentBase(ABC):
 
         if hasattr(response, "response_metadata"):
             usage = response.response_metadata.get("token_usage", {})
+            # 兼容不同 API 的字段名:
+            # Claude: input_tokens / output_tokens
+            # OpenAI / DeepSeek: prompt_tokens / completion_tokens
+            prompt = usage.get("input_tokens") or usage.get("prompt_tokens", 0)
+            completion = usage.get("output_tokens") or usage.get("completion_tokens", 0)
             token_counter.record(
                 node_id=self.node_id,
-                prompt_tokens=usage.get("input_tokens", 0),
-                completion_tokens=usage.get("output_tokens", 0),
+                prompt_tokens=prompt,
+                completion_tokens=completion,
                 model=self.model_name,
             )
         return content
