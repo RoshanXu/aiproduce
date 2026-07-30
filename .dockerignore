@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# 测试缓存
+.pytest_cache/
+htmlcov/
+.coverage
+
+# 工作区（运行时数据，通过 volume 挂载）
+workspace/
+
+# 环境变量
+.env
+.env.local
+
+# OS
+Thumbs.db
+.DS_Store
+
+# 临时文件
+*.tmp
+*.log

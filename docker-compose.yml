@@ -1,0 +1,39 @@
+# AIproduce Docker Compose 配置
+#
+# 启动 Web UI:       docker compose up -d
+# 运行 Thin Slice:   docker compose run --rm aiproduce run --thin-slice --novel /app/tests/fixtures/sample_novel_chapter.md --name "Docker测试"
+# 交互式向导:        docker compose run --rm aiproduce wizard
+# 查看状态:          docker compose run --rm aiproduce status
+#
+# API Key（可选，不设置则使用规则降级模式）:
+#   set ANTHROPIC_API_KEY=sk-ant-xxx  # Windows
+#   export ANTHROPIC_API_KEY=sk-ant-xxx  # macOS/Linux
+#   （或者在下方 environment 中取消注释并填入）
+
+services:
+  aiproduce:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aiproduce:latest
+    container_name: aiproduce
+    ports:
+      - "7860:7860"
+    volumes:
+      # 持久化工作区（项目数据、生成结果、日志）
+      - aiproduce_workspace:/app/workspace
+      # 可选：挂载本地小说文件目录，方便上传
+      - ./tests/fixtures:/app/tests/fixtures:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+      # 如需启用 LLM 模式，取消下行注释并填入 Key
+      # - ANTHROPIC_API_KEY=sk-ant-xxx
+      # 如需使用 OpenAI 兼容接口
+      # - OPENAI_API_KEY=sk-xxx
+    restart: unless-stopped
+    # 默认启动 Web UI，修改 command 可切换模式：
+    command: web --port 7860
+
+volumes:
+  aiproduce_workspace:
+    name: aiproduce_workspace
