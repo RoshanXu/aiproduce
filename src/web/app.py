@@ -56,7 +56,7 @@ class AIproduceWebUI:
             source_file_path=str(novel_path),
             adaptation_format=adaptation_format,
             target_episodes=target_episodes,
-            episode_duration_min=episode_duration,
+            episode_duration=episode_duration,
         )
 
         self.current_project_id = result["project_id"]
