@@ -28,7 +28,10 @@ class DatabaseEngine:
             echo=False,
             connect_args={"check_same_thread": False},
         )
-        self._session_factory = sessionmaker(bind=self._engine)
+        self._session_factory = sessionmaker(
+            bind=self._engine,
+            expire_on_commit=False,  # 防止 DetachedInstanceError
+        )
 
     @property
     def engine(self) -> Engine:

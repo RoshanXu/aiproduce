@@ -2,13 +2,12 @@
 
 Usage:
     aiproduce init --name "项目名" --source novel.txt
-    aiproduce run --thin-slice
+    aiproduce run --thin-slice --project <PROJECT_ID>
     aiproduce status
     aiproduce wizard
 """
 
 import click
-from pathlib import Path
 
 
 @click.group()
@@ -31,17 +30,33 @@ def init(name, source, format, episodes, duration):
 
 
 @cli.command()
-@click.option("--project", "-p", default=None, help="项目ID（不指定则使用最近项目）")
-@click.option("--thin-slice", is_flag=True, help="运行最小可行验证链路（Thin Slice）")
-@click.option("--full", is_flag=True, help="运行完整21节点工作流")
-def run(project, thin_slice, full):
+@click.option("--project", "-p", default=None, help="项目ID")
+@click.option("--thin-slice", is_flag=True, help="运行最小可行验证链路")
+@click.option("--full", is_flag=True, help="运行完整工作流")
+@click.option("--novel", "-n", default=None, type=click.Path(exists=True), help="直接从小说文件运行（自动创建项目）")
+@click.option("--name", default="QuickRun", help="自动创建项目时的项目名称")
+def run(project, thin_slice, full, novel, name):
     """运行改编工作流"""
     from src.cli.commands import run_workflow
-    run_workflow(project, thin_slice=thin_slice, full=full)
+
+    if novel:
+        # 从小说文件直接运行：先 init 再 thin-slice
+        from src.cli.commands import init_project
+        from src.agents.scheduler import SchedulerAgent
+
+        agent = SchedulerAgent()
+        result = agent.execute(
+            action="init",
+            project_name=name,
+            source_file_path=novel,
+        )
+        project = result["project_id"]
+
+    run_workflow(project, thin_slice=thin_slice or bool(novel), full=full)
 
 
 @cli.command()
-@click.option("--project", "-p", default=None, help="项目ID")
+@click.option("--project", "-p", default=None, help="项目ID（不指定则列出所有）")
 def status(project):
     """查看项目进度"""
     from src.cli.commands import show_status

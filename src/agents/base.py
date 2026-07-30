@@ -11,12 +11,26 @@
 import json
 import time
 import re
+import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
-from langchain_anthropic import ChatAnthropic
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
+
+# Lazy imports: langchain 可能存在版本兼容问题，降级使用 anthropic SDK
+try:
+    from langchain_anthropic import ChatAnthropic
+    from langchain_openai import ChatOpenAI
+    from langchain_core.messages import HumanMessage, SystemMessage
+    HAS_LANGCHAIN = True
+except ImportError:
+    HAS_LANGCHAIN = False
+
+try:
+    import anthropic
+    HAS_ANTHROPIC = True
+except ImportError:
+    HAS_ANTHROPIC = False
+
 from src.utils.logger import node_logger
 from src.utils.token_counter import token_counter
 
@@ -46,28 +60,41 @@ class AgentBase(ABC):
         self._llm = None
 
     def _get_llm(self):
-        """延迟初始化 LLM 实例"""
+        """延迟初始化 LLM 实例
+
+        优先使用 langchain，降级使用原生 anthropic SDK。
+        """
         if self._llm is not None:
             return self._llm
 
-        if "claude" in self.model_name.lower():
-            self._llm = ChatAnthropic(
-                model=self.model_name,
-                temperature=self.temperature,
-                max_tokens=8192,
-            )
-        elif "gpt" in self.model_name.lower() or "openai" in self.model_name.lower():
-            self._llm = ChatOpenAI(
-                model=self.model_name,
-                temperature=self.temperature,
-                max_tokens=8192,
+        if HAS_LANGCHAIN:
+            if "claude" in self.model_name.lower():
+                self._llm = ChatAnthropic(
+                    model=self.model_name,
+                    temperature=self.temperature,
+                    max_tokens=8192,
+                )
+            elif "gpt" in self.model_name.lower() or "openai" in self.model_name.lower():
+                self._llm = ChatOpenAI(
+                    model=self.model_name,
+                    temperature=self.temperature,
+                    max_tokens=8192,
+                )
+            else:
+                self._llm = ChatAnthropic(
+                    model="claude-sonnet-5",
+                    temperature=self.temperature,
+                    max_tokens=8192,
+                )
+        elif HAS_ANTHROPIC and "claude" in self.model_name.lower():
+            # 使用原生 anthropic SDK（轻量降级方案）
+            self._llm = anthropic.Anthropic(
+                api_key=os.getenv("ANTHROPIC_API_KEY"),
             )
         else:
-            # 默认使用 Anthropic
-            self._llm = ChatAnthropic(
-                model="claude-sonnet-5",
-                temperature=self.temperature,
-                max_tokens=8192,
+            raise RuntimeError(
+                "No LLM backend available. "
+                "Install langchain-anthropic or set ANTHROPIC_API_KEY."
             )
         return self._llm
 
@@ -90,50 +117,24 @@ class AgentBase(ABC):
     ) -> str:
         """统一 LLM 调用接口
 
-        Args:
-            user_input: 用户输入（已渲染的 prompt）
-            system_prompt: 系统提示（可选，默认为角色定位）
-            output_schema: 用于结构化输出约束的 JSON Schema（可选）
-
-        Returns:
-            LLM 响应文本
+        支持 langchain 和原生 anthropic SDK 两种后端。
         """
-        llm = self._get_llm()
-        messages = []
-
-        if system_prompt:
-            messages.append(SystemMessage(content=system_prompt))
-        else:
-            messages.append(SystemMessage(
-                content="你是一个专业的小说改剧本AI助手。请严格按照指令输出结构化内容。"
-            ))
-
-        messages.append(HumanMessage(content=user_input))
-
         with node_logger.node_context(self.node_id, self.node_name) as log:
             for attempt in range(1, self.max_retries + 1):
                 try:
-                    response = llm.invoke(messages)
-                    content = response.content if hasattr(response, "content") else str(response)
-
-                    # 记录 Token 消耗
-                    if hasattr(response, "response_metadata"):
-                        usage = response.response_metadata.get("token_usage", {})
-                        token_counter.record(
-                            node_id=self.node_id,
-                            prompt_tokens=usage.get("input_tokens", 0),
-                            completion_tokens=usage.get("output_tokens", 0),
-                            model=self.model_name,
-                        )
+                    if HAS_LANGCHAIN:
+                        content = self._call_via_langchain(user_input, system_prompt)
+                    elif HAS_ANTHROPIC:
+                        content = self._call_via_anthropic(user_input, system_prompt)
+                    else:
+                        raise RuntimeError("No LLM backend available.")
 
                     # 结构化输出校验
                     if output_schema:
                         content = self._validate_json(content, output_schema)
                         if content is None and attempt < self.max_retries:
                             log.warning(f"结构化输出校验失败，重试 {attempt}/{self.max_retries}")
-                            messages.append(HumanMessage(
-                                content=f"输出格式不符合要求，请严格按照以下JSON Schema重新输出：\n{json.dumps(output_schema, ensure_ascii=False)}"
-                            ))
+                            user_input += f"\n\n输出格式不符合要求，请严格按照以下JSON Schema重新输出：\n{json.dumps(output_schema, ensure_ascii=False)}"
                             time.sleep(2 ** attempt)
                             continue
 
@@ -148,7 +149,51 @@ class AgentBase(ABC):
                             f"[{self.node_id}] {self.node_name} LLM 调用在 {self.max_retries} 次重试后仍然失败"
                         ) from e
 
-            raise RuntimeError(f"[{self.node_id}] {self.node_name} 结构化输出校验在 {self.max_retries} 次重试后仍然失败")
+            raise RuntimeError(
+                f"[{self.node_id}] {self.node_name} 结构化输出校验在 {self.max_retries} 次重试后仍然失败"
+            )
+
+    def _call_via_langchain(self, user_input: str, system_prompt: Optional[str] = None) -> str:
+        """通过 langchain 调用 LLM"""
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        llm = self._get_llm()
+        messages = [
+            SystemMessage(content=system_prompt or "你是一个专业的小说改剧本AI助手。请严格按照指令输出结构化内容。"),
+            HumanMessage(content=user_input),
+        ]
+        response = llm.invoke(messages)
+        content = response.content if hasattr(response, "content") else str(response)
+
+        if hasattr(response, "response_metadata"):
+            usage = response.response_metadata.get("token_usage", {})
+            token_counter.record(
+                node_id=self.node_id,
+                prompt_tokens=usage.get("input_tokens", 0),
+                completion_tokens=usage.get("output_tokens", 0),
+                model=self.model_name,
+            )
+        return content
+
+    def _call_via_anthropic(self, user_input: str, system_prompt: Optional[str] = None) -> str:
+        """通过原生 anthropic SDK 调用 LLM"""
+        llm = self._get_llm()
+        response = llm.messages.create(
+            model=self.model_name,
+            max_tokens=8192,
+            temperature=self.temperature,
+            system=system_prompt or "你是一个专业的小说改剧本AI助手。请严格按照指令输出结构化内容。",
+            messages=[{"role": "user", "content": user_input}],
+        )
+        content = response.content[0].text
+
+        token_counter.record(
+            node_id=self.node_id,
+            prompt_tokens=response.usage.input_tokens,
+            completion_tokens=response.usage.output_tokens,
+            model=self.model_name,
+        )
+        return content
 
     @staticmethod
     def _validate_json(content: str, schema: dict) -> Optional[str]:

@@ -8,10 +8,12 @@ from src.workflow.graph import (
     NODE_REGISTRY, THIN_SLICE_NODES,
     get_phase_nodes, get_next_node, build_workflow_graph,
 )
+from src.workflow.runner import WorkflowRunner
 
 __all__ = [
     "WorkflowState", "NodeStatus",
     "check_n02_pass", "check_n03_pass", "check_n12_pass", "check_node_pass",
     "NODE_REGISTRY", "THIN_SLICE_NODES",
     "get_phase_nodes", "get_next_node", "build_workflow_graph",
+    "WorkflowRunner",
 ]
