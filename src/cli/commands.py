@@ -138,8 +138,12 @@ def show_status(project: str | None = None):
 
 def run_wizard():
     """交互式项目配置向导"""
+    import yaml
+    from datetime import datetime
+
     click.echo("\n🧙 AIproduce 项目配置向导")
     click.echo("=" * 40)
+    click.echo("   按提示填写项目配置，Ctrl+C 退出\n")
 
     name = click.prompt("项目名称", type=str)
     source = click.prompt("原著文件路径", type=str)
@@ -162,31 +166,165 @@ def run_wizard():
         type=click.Choice(["古装", "现代", "架空", "都市", "悬疑", "科幻", "言情"]),
         default="古装",
     )
+    target_audience = click.prompt(
+        "目标观众",
+        type=click.Choice(["全年龄", "18-35岁", "12-18岁", "成人向"]),
+        default="18-35岁",
+    )
+    adaptation_direction = click.prompt(
+        "改编方向说明（可选，回车跳过）",
+        type=str, default="", show_default=False,
+    )
 
-    click.echo(f"\n📋 配置确认:")
-    click.echo(f"   项目: {name}")
-    click.echo(f"   原著: {source}")
-    click.echo(f"   改编: {format_choice} | {episodes}集 × {duration}分钟")
-    click.echo(f"   题材: {genre}")
+    model_tier = click.prompt(
+        "模型档位",
+        type=click.Choice(["8K", "32K", "128K+"]),
+        default="32K",
+    )
+    model_name = click.prompt(
+        "首选模型",
+        type=click.Choice(["claude-sonnet-5", "claude-opus-5", "claude-haiku-4-5", "gpt-4o"]),
+        default="claude-sonnet-5",
+    )
 
-    if click.confirm("\n确认创建项目?"):
-        init_project(name, source, format_choice, episodes, duration)
+    # 字数统计
+    try:
+        from src.utils.text_utils import load_novel, count_chinese_words
+        novel_text = load_novel(source)
+        word_count = count_chinese_words(novel_text)
+        click.echo(f"\n   📊 原著字数: {word_count:,} 字")
+    except Exception:
+        word_count = 0
 
-        if click.confirm("\n是否立即运行 N01→N02→N03 解构分析?"):
-            # 运行完整 Thin Slice 阶段1
-            from src.workflow.runner import WorkflowRunner
-            runner = WorkflowRunner()
-            runner.run_thin_slice(
-                project_name=name,
-                source_file_path=source,
-                adaptation_format=format_choice,
-                target_episodes=episodes,
-                episode_duration=duration,
-                genre=genre,
-            )
+    # 配置确认
+    click.echo(f"\n{'─'*40}")
+    click.echo(f"📋 配置确认:")
+    click.echo(f"   项目名称: {name}")
+    click.echo(f"   原著文件: {source} ({word_count:,} 字)")
+    click.echo(f"   改编形式: {format_choice} | {episodes}集 × {duration}分钟")
+    click.echo(f"   题材/受众: {genre} / {target_audience}")
+    click.echo(f"   改编方向: {adaptation_direction or '（未指定）'}")
+    click.echo(f"   模型配置: {model_name} ({model_tier})")
+    click.echo(f"{'─'*40}")
+
+    if not click.confirm("\n✅ 确认创建项目?"):
+        click.echo("已取消")
+        return
+
+    # 初始化项目
+    init_project(name, source, format_choice, episodes, duration)
+
+    # 创建项目后，保存完整配置到项目目录
+    project_dir = Path("workspace/projects")
+    # 找到刚创建的项目目录
+    project_dirs = sorted(project_dir.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if project_dirs:
+        proj = project_dirs[0]
+        config_path = proj / "project.yaml"
+
+        config = {
+            "project_id": proj.name,
+            "project_name": name,
+            "source_file_path": source,
+            "source_total_words": word_count,
+            "adaptation": {
+                "format": format_choice,
+                "target_episodes": episodes,
+                "episode_duration_min": duration,
+                "genre": genre,
+                "target_audience": target_audience,
+                "adaptation_direction": adaptation_direction,
+            },
+            "model": {
+                "tier": model_tier,
+                "name": model_name,
+                "temperature": 0.7,
+                "max_retries": 3,
+            },
+            "created_at": datetime.now().isoformat(),
+        }
+        config_path.write_text(
+            yaml.dump(config, allow_unicode=True, default_flow_style=False),
+            encoding="utf-8",
+        )
+        click.echo(f"\n📄 项目配置已保存: {config_path}")
+
+    # 询问是否运行
+    if click.confirm("\n🚀 是否立即运行 Thin Slice 链路?"):
+        from src.workflow.runner import WorkflowRunner
+        runner = WorkflowRunner()
+        runner.run_thin_slice(
+            project_name=name,
+            source_file_path=source,
+            adaptation_format=format_choice,
+            target_episodes=episodes,
+            episode_duration=duration,
+            genre=genre,
+        )
 
 
 def show_report(project: str | None = None):
-    """显示成本统计"""
+    """显示成本统计报告"""
     from src.utils.token_counter import token_counter
+
+    if project:
+        # 尝试加载项目持久化的成本数据
+        project_dir = Path("workspace/projects") / project
+        usage_file = project_dir / "work" / "token_usage.jsonl"
+
+        if usage_file.exists():
+            token_counter.set_project(project, project_dir)
+        else:
+            click.echo(f"\n⚠️  项目 {project} 暂无 Token 消耗记录\n")
+            click.echo("   提示: 运行 Thin Slice 后才会记录 Token 消耗\n")
+            return
+
     token_counter.print_report()
+
+    if project:
+        # 额外显示项目级别摘要
+        project_dir = Path("workspace/projects") / project
+        _print_project_summary(project_dir, project)
+
+
+def _print_project_summary(project_dir: Path, project_id: str):
+    """打印项目级别的产出物摘要"""
+    try:
+        from rich.console import Console
+        from rich.table import Table
+
+        console = Console()
+
+        summary = Table(title=f"项目 {project_id} 产出物概览", box=None)
+        summary.add_column("节点", style="cyan")
+        summary.add_column("产出物", style="dim")
+        summary.add_column("状态")
+
+        checks = [
+            ("N01 初始化", "db.sqlite", project_dir / "db.sqlite"),
+            ("N02 解构", "deconstruction/", project_dir / "work" / "deconstruction"),
+            ("N03 资产库", "assets/", project_dir / "assets"),
+            ("N04 策划", "planning/", project_dir / "work" / "planning"),
+            ("N07 大纲", "outlines/", project_dir / "work" / "outlines"),
+            ("N09 场次", "scenes/", project_dir / "work" / "scenes"),
+            ("N11 剧本", "drafts/", project_dir / "work" / "drafts"),
+            ("N12-14 校验", "validation/", project_dir / "work" / "validation"),
+        ]
+
+        for name, path, full_path in checks:
+            exists = full_path.exists()
+            if exists and full_path.is_dir():
+                file_count = len(list(full_path.glob("*")))
+                status = f"✅ {file_count} 文件"
+            elif exists:
+                status = "✅"
+            else:
+                status = "⏳"
+            summary.add_row(name, path, status)
+
+        console.print()
+        console.print(summary)
+        console.print()
+
+    except ImportError:
+        pass

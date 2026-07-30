@@ -38,7 +38,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 package-dir = { "" = "." }
-packages = ["src", "src.models", "src.db", "src.store", "src.agents", "src.workflow", "src.cli", "src.utils"]
+packages = ["src", "src.models", "src.db", "src.store", "src.agents", "src.workflow", "src.cli", "src.utils", "src.web"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

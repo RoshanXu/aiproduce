@@ -78,5 +78,29 @@ def report(project):
     show_report(project)
 
 
+@cli.command()
+@click.option("--port", "-p", default=7860, type=int, help="Web 服务端口")
+@click.option("--share", is_flag=True, help="生成公网共享链接")
+def web(port, share):
+    """启动 Gradio Web UI"""
+    try:
+        from src.web.app import main as web_main
+        import gradio as gr
+        app = gr.Blocks()
+        from src.web.app import create_ui
+        app = create_ui()
+        app.launch(
+            server_name="127.0.0.1",
+            server_port=port,
+            share=share,
+            show_error=True,
+        )
+    except ImportError:
+        import sys
+        print("❌ 请先安装 Gradio: pip install gradio")
+        print("   或: pip install -e '.[dev]'")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     cli()
