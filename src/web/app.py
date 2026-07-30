@@ -244,6 +244,7 @@ def create_ui() -> gr.Blocks:
         上传小说 → 自动运行 Thin Slice 链路 → 查看解构结果与剧本预览
         """)
 
+        # ── 运行 Tab ──────────────────────────
         with gr.Tab("🚀 运行"):
             with gr.Row():
                 with gr.Column(scale=1):
@@ -277,20 +278,12 @@ def create_ui() -> gr.Blocks:
                         placeholder="点击「开始运行」启动 Thin Slice 链路..."
                     )
 
-            run_btn.click(
-                fn=web.init_and_run,
-                inputs=[project_name, novel_file, adaptation_format,
-                        target_episodes, episode_duration],
-                outputs=[log_output, gr.Textbox(), gr.Textbox(),
-                         gr.Textbox(), gr.Textbox()],
-            )
-
+        # ── 结果 Tab ──────────────────────────
         with gr.Tab("👤 人物资产"):
-            with gr.Row():
-                char_output = gr.Textbox(
-                    label="人物资产库", lines=25, max_lines=40,
-                    placeholder="运行项目后自动加载..."
-                )
+            char_output = gr.Textbox(
+                label="人物资产库", lines=25, max_lines=40,
+                placeholder="运行项目后自动加载..."
+            )
 
         with gr.Tab("🌍 世界观"):
             world_output = gr.Textbox(
@@ -316,13 +309,22 @@ def create_ui() -> gr.Blocks:
                 placeholder="运行项目后自动加载..."
             )
 
-        # 加载已有项目
+        # ── 加载已有项目 ──────────────────────
         with gr.Row():
             project_id_input = gr.Textbox(
                 label="或加载已有项目ID（跳过运行，直接查看结果）",
                 placeholder="输入项目ID，如 PRJ-20240730-xxxx"
             )
             load_btn = gr.Button("📂 加载项目")
+
+        # ── 事件绑定（放在所有组件定义之后）───
+        run_btn.click(
+            fn=web.init_and_run,
+            inputs=[project_name, novel_file, adaptation_format,
+                    target_episodes, episode_duration],
+            outputs=[log_output, char_output, world_output,
+                     timeline_output, script_output],
+        )
 
         load_btn.click(
             fn=lambda pid: (
