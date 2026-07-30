@@ -1,0 +1,95 @@
+# 13个Agent注册信息
+# 每个Agent定义其节点编号、名称、角色类型、Prompt模板路径、模型偏好
+
+agents:
+
+  - node_id: "N01/N15/N16/N21"
+    name: "项目调度Agent"
+    category: "调度编排层"
+    prompt_template: "prompts/01_scheduler.md"
+    model_tier: "32K"
+    description: "全流程大脑，负责任务分发、进度管理、异常处理"
+
+  - node_id: "N02"
+    name: "原著解构Agent"
+    category: "资产管理层"
+    prompt_template: "prompts/02_deconstructor.md"
+    model_tier: "128K+"  # 推荐使用长上下文模型
+    description: "长文本拆解专家，全项目的信息入口"
+
+  - node_id: "N03/N06"
+    name: "人设资产管理Agent"
+    category: "资产管理层"
+    prompt_template: "prompts/03_character_asset.md"
+    model_tier: "32K"
+    description: "人物设定唯一官方管理员"
+
+  - node_id: "N03/N06"
+    name: "世界观资产管理Agent"
+    category: "资产管理层"
+    prompt_template: "prompts/04_world_asset.md"
+    model_tier: "32K"
+    description: "世界设定与美学规则管理员"
+
+  - node_id: "N03/N06"
+    name: "时间线管理Agent"
+    category: "资产管理层"
+    prompt_template: "prompts/05_timeline_asset.md"
+    model_tier: "32K"
+    description: "全剧叙事时间的唯一基准管理员"
+
+  - node_id: "N04"
+    name: "改编策划Agent"
+    category: "创作执行层"
+    prompt_template: "prompts/06_adaptation_planner.md"
+    model_tier: "32K"
+    description: "改编总设计师，确定改编方向与取舍原则"
+
+  - node_id: "N07"
+    name: "分集大纲Agent"
+    category: "创作执行层"
+    prompt_template: "prompts/07_episode_outliner.md"
+    model_tier: "32K"
+    description: "全局结构设计师，搭建全剧骨架"
+
+  - node_id: "N09"
+    name: "场次拆分Agent"
+    category: "创作执行层"
+    prompt_template: "prompts/08_scene_splitter.md"
+    model_tier: "32K"
+    description: "单集内容拆解师，把大纲落地为场次颗粒"
+
+  - node_id: "N11"
+    name: "单场剧本Agent"
+    category: "创作执行层"
+    prompt_template: "prompts/09_scene_writer.md"
+    model_tier: "32K"
+    description: "内容生产执行单元，批量生成单场剧本初稿"
+
+  - node_id: "N12"
+    name: "人设一致性校验Agent"
+    category: "校验审计层"
+    prompt_template: "prompts/10_character_checker.md"
+    model_tier: "32K"
+    description: "基于官方资产库校验剧本人设合规性"
+
+  - node_id: "N13"
+    name: "时间线与伏笔校验Agent"
+    category: "校验审计层"
+    prompt_template: "prompts/11_timeline_checker.md"
+    model_tier: "32K"
+    description: "校验剧情时间逻辑与伏笔回收完整性"
+
+  - node_id: "N14"
+    name: "格式与合规校验Agent"
+    category: "校验审计层"
+    prompt_template: "prompts/12_format_checker.md"
+    model_tier: "32K"
+    description: "校验格式规范与基础合规性"
+
+  - node_id: "N17/N19"
+    name: "全局统稿Agent"
+    category: "统稿优化层"
+    prompt_template: "prompts/13_final_polisher.md"
+    model_tier: "128K+"  # 推荐使用长上下文模型
+    description: "最终质量打磨师，负责全稿风格统一与节奏优化"

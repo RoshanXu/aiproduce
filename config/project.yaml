@@ -1,0 +1,29 @@
+# AIproduce 项目配置模板
+# 运行 aiproduce init 或 aiproduce wizard 时自动填充
+
+project_id: ""
+project_name: ""
+source_file_path: ""
+source_total_words: 0
+
+adaptation:
+  format: "网剧"        # 短剧 / 网剧 / 漫剧
+  target_episodes: 24
+  episode_duration_min: 45
+  genre: "古装"         # 古装/现代/架空/都市/悬疑/科幻/言情
+  target_audience: "18-35岁"
+  adaptation_direction: ""
+
+model:
+  tier: "32K"           # 8K / 32K / 128K+
+  name: "claude-sonnet-5"
+  temperature: 0.7
+  max_retries: 3
+
+workspace:
+  base_dir: "workspace"
+  asset_dir: "workspace/projects/{project_id}/assets"
+  work_dir: "workspace/projects/{project_id}/work"
+  log_dir: "workspace/logs"
+  db_path: "workspace/projects/{project_id}/db.sqlite"
+  chroma_dir: "workspace/projects/{project_id}/chroma"

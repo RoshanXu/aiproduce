@@ -1,0 +1,57 @@
+# 21节点工作流定义
+# 定义每个节点的准入条件、执行角色、准出标准
+
+phases:
+  - id: 1
+    name: "项目初始化与原著解构"
+    nodes: ["N01", "N02", "N03"]
+
+  - id: 2
+    name: "改编顶层设计与全局结构"
+    nodes: ["N04", "N05", "N06", "N07", "N08"]
+
+  - id: 3
+    name: "分集结构与场次拆解"
+    nodes: ["N09", "N10"]
+    parallelizable: true  # 可按集并行
+
+  - id: 4
+    name: "逐场剧本批量生成"
+    nodes: ["N11", "N12", "N13", "N14", "N15"]
+    parallelizable: true  # 可按场次并行
+
+  - id: 5
+    name: "全局校验与终稿统合"
+    nodes: ["N16", "N17", "N18", "N19", "N20", "N21"]
+
+thin_slice:
+  description: "最小可行验证链路"
+  nodes: ["N01", "N02", "N03", "N04", "N07", "N09", "N11", "N12"]
+
+nodes:
+  N01:
+    preconditions:
+      - "已上传原著文件"
+      - "已确认改编体量与题材"
+    postconditions:
+      - "目录结构完整"
+      - "参数配置无误"
+
+  N02:
+    preconditions:
+      - "N01完成"
+      - "原著文件已入库"
+    postconditions:
+      - "拆分点100%位于语义边界"
+      - "摘要覆盖全文无章节遗漏"
+      - "五类基础标签维度完整"
+
+  N03:
+    preconditions:
+      - "N02完成"
+      - "分层摘要已入库"
+    postconditions:
+      - "核心人物/设定/事件无遗漏"
+      - "无明显冲突"
+
+  # N04-N21 的详细定义将在阶段1-4逐步补充...
