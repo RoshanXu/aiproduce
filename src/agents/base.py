@@ -216,7 +216,15 @@ class AgentBase(ABC):
             system=system_prompt or "你是一个专业的小说改剧本AI助手。请严格按照指令输出结构化内容。",
             messages=[{"role": "user", "content": user_input}],
         )
-        content = response.content[0].text
+        # 提取文本 block（DeepSeek 返回 ThinkingBlock + TextBlock）
+        content = ""
+        for block in response.content:
+            if getattr(block, "type", "") == "text":
+                content = block.text
+                break
+        # 兜底：取第一个 block
+        if not content and response.content:
+            content = getattr(response.content[0], "text", "")
 
         token_counter.record(
             node_id=self.node_id,
