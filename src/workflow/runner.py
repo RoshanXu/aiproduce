@@ -107,6 +107,45 @@ class WorkflowRunner:
         total_ep = n07_result.get("total_episodes", 0)
         print(f"  ✅ 分集大纲完成: {total_ep} 集")
 
+        # ─── N09: 场次拆分 ───────────────────
+        print("\n[N09] 场次拆分...")
+        n09_result = self._run_n09(project_id=project_id, episode_id="EP01", model_name=model_name)
+        self.state.set_node_status("N09", NodeStatus.PASSED)
+        self.state.set_node_output("N09", n09_result)
+        results["N09"] = n09_result
+        scenes = n09_result.get("scenes", [])
+        print(f"  ✅ 场次拆分完成: {n09_result['total_scenes']} 场")
+
+        # ─── N11: 单场剧本生成（选取前3场） ──
+        print("\n[N11] 单场剧本生成...")
+        thin_slice_scenes = scenes[:3]  # Thin Slice 只生成前3场
+        n11_results = []
+        for i, scene in enumerate(thin_slice_scenes):
+            print(f"  ├─ 生成 {scene['scene_id']} ({i+1}/{len(thin_slice_scenes)})...")
+            n11 = self._run_n11(project_id=project_id, scene_card=scene, model_name=model_name)
+            n11_results.append(n11)
+        self.state.set_node_status("N11", NodeStatus.PASSED)
+        self.state.set_node_output("N11", {"scripts": n11_results})
+        results["N11"] = n11_results
+        print(f"  ✅ 剧本生成完成: {len(n11_results)} 场")
+
+        # ─── N12: 人设一致性校验 ──────────────
+        print("\n[N12] 人设一致性校验...")
+        n12_results = []
+        for n11 in n11_results:
+            scene_id = n11["scene_id"]
+            print(f"  ├─ 校验 {scene_id}...")
+            n12 = self._run_n12(project_id=project_id, scene_id=scene_id, model_name=model_name)
+            n12_results.append(n12)
+            verdict = n12.get("verdict", "?")
+            blocking = len(n12.get("blocking_issues", []))
+            warnings = len(n12.get("warning_issues", []))
+            print(f"  │  {verdict} (阻塞:{blocking}, 警告:{warnings})")
+        self.state.set_node_status("N12", NodeStatus.PASSED)
+        self.state.set_node_output("N12", {"reports": n12_results})
+        results["N12"] = n12_results
+        print(f"  ✅ 校验完成: {len(n12_results)} 场")
+
         # Save updated results
         self._save_results(project_id, results)
 
@@ -114,9 +153,9 @@ class WorkflowRunner:
         token_counter.print_report()
 
         print("\n" + "=" * 60)
-        print("✅ Thin Slice 阶段1+2 (N01→N02→N03→N04→N07) 执行完成")
+        print("✅ Thin Slice 完整链路 (N01→N02→N03→N04→N07→N09→N11→N12) 执行完成!")
         print(f"   项目ID: {project_id}")
-        print(f"   后续节点 N09→N11→N12 将在阶段3实现")
+        print(f"   产出: {n07_result.get('total_episodes', 0)}集大纲 → {n09_result['total_scenes']}场 → {len(n11_results)}场剧本 → {len(n12_results)}份校验报告")
         print("=" * 60 + "\n")
 
         return {"project_id": project_id, "results": results}
@@ -216,6 +255,24 @@ class WorkflowRunner:
         from src.agents.episode_outliner import EpisodeOutlinerAgent
         agent = EpisodeOutlinerAgent(model_name=model_name)
         return agent.execute(project_id=project_id)
+
+    def _run_n09(self, project_id: str, episode_id: str, model_name: str) -> dict:
+        """N09 场次拆分"""
+        from src.agents.scene_splitter import SceneSplitterAgent
+        agent = SceneSplitterAgent(model_name=model_name)
+        return agent.execute(project_id=project_id, episode_id=episode_id)
+
+    def _run_n11(self, project_id: str, scene_card: dict, model_name: str) -> dict:
+        """N11 单场剧本生成"""
+        from src.agents.scene_writer import SceneWriterAgent
+        agent = SceneWriterAgent(model_name=model_name)
+        return agent.execute(project_id=project_id, scene_card=scene_card)
+
+    def _run_n12(self, project_id: str, scene_id: str, model_name: str) -> dict:
+        """N12 人设一致性校验"""
+        from src.agents.character_checker import CharacterCheckerAgent
+        agent = CharacterCheckerAgent(model_name=model_name)
+        return agent.execute(project_id=project_id, scene_id=scene_id)
 
     def _save_results(self, project_id: str, results: dict):
         """保存阶段结果到工作区"""

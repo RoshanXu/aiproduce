@@ -235,9 +235,12 @@ class DeconstructorAgent(AgentBase):
 
     def _fallback_extract(self, block_text: str, chapter_title: str) -> dict:
         """降级方案：基于规则的基础信息提取（无需 LLM）"""
-        # 提取可能的角色名（中文名+称谓模式）
-        name_pattern = re.findall(r"([沈李王张陈刘杨赵黄周林何马孙高罗郭郑吴徐叶苏吕宋朱胡曹许谢冯唐于董袁邓萧汪田蒋蔡潘杜魏薛余廖邹熊金陆郝白崔康毛邱秦江史顾侯邵孟龙万段雷钱汤尹黎易常武乔贺赖龚文])([^\s，。！？；：、""''）（\n]{1,3})", block_text)
-        characters = list(set(f"{a}{b}" for a, b in name_pattern))[:5]
+        # 提取可能的角色名（中文姓氏+名字模式）
+        surnames = "沈李王张陈刘杨赵黄周林何马孙高罗郭郑吴徐叶苏吕宋朱胡曹许谢冯唐于董袁邓萧汪田蒋蔡潘杜魏薛余廖邹熊金陆郝白崔康毛邱秦江史顾侯邵孟龙万段雷钱汤尹黎易常武乔贺赖龚文范石姚谭姜方崔侯廖邹"
+        name_pattern = re.findall(rf"([{surnames}])([^\s，。！？；：、""''）（\n\d]{{1,2}})", block_text)
+        # 过滤非人名的字符串（如"文件""测试"等）
+        non_names = {"文件", "测试", "项目", "工作", "数据", "内容", "格式", "说明", "用于", "配置"}
+        characters = list(set(f"{a}{b}" for a, b in name_pattern if f"{a}{b}" not in non_names))[:5]
 
         return {
             "story_unit": chapter_title,
