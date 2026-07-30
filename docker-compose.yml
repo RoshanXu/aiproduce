@@ -26,10 +26,10 @@ services:
       - ./tests/fixtures:/app/tests/fixtures:ro
     environment:
       - PYTHONUNBUFFERED=1
-      # 如需启用 LLM 模式，取消下行注释并填入 Key
-      # - ANTHROPIC_API_KEY=sk-ant-xxx
-      # 如需使用 OpenAI 兼容接口
-      # - OPENAI_API_KEY=sk-xxx
+      # 选择一个大模型填入 Key 即可：
+      # - ANTHROPIC_API_KEY=sk-ant-xxx        # Claude 系列
+      # - DEEPSEEK_API_KEY=sk-xxx             # DeepSeek 系列
+      # - OPENAI_API_KEY=sk-xxx               # OpenAI 系列
     restart: unless-stopped
     # 默认启动 Web UI，修改 command 可切换模式：
     command: web --port 7860

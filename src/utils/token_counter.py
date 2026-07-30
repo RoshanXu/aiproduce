@@ -52,6 +52,8 @@ MODEL_PRICING = {
     "gpt-4o":              {"input": 2.5,  "output": 10.0},
     "gpt-4o-mini":         {"input": 0.15, "output": 0.6},
     "deepseek-v4-pro":     {"input": 0.5,  "output": 2.0},
+    "deepseek-chat":       {"input": 0.27, "output": 1.10},
+    "deepseek-reasoner":   {"input": 0.55, "output": 2.19},
 }
 
 

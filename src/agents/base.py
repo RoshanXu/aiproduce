@@ -62,31 +62,47 @@ class AgentBase(ABC):
     def _get_llm(self):
         """延迟初始化 LLM 实例
 
-        优先使用 langchain，降级使用原生 anthropic SDK。
+        支持:
+        - Claude 系列 (langchain-anthropic / 原生 anthropic SDK)
+        - OpenAI / DeepSeek / 其他 OpenAI 兼容接口 (langchain-openai)
         """
         if self._llm is not None:
             return self._llm
 
+        model_lower = self.model_name.lower()
+
         if HAS_LANGCHAIN:
-            if "claude" in self.model_name.lower():
+            if "claude" in model_lower:
                 self._llm = ChatAnthropic(
                     model=self.model_name,
                     temperature=self.temperature,
                     max_tokens=8192,
                 )
-            elif "gpt" in self.model_name.lower() or "openai" in self.model_name.lower():
+            elif "deepseek" in model_lower:
+                # DeepSeek 使用 OpenAI 兼容接口
+                api_key = os.getenv("DEEPSEEK_API_KEY", "")
+                base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
+                self._llm = ChatOpenAI(
+                    model=self.model_name,
+                    temperature=self.temperature,
+                    max_tokens=8192,
+                    openai_api_key=api_key,
+                    openai_api_base=base_url,
+                )
+            elif "gpt" in model_lower or "openai" in model_lower:
                 self._llm = ChatOpenAI(
                     model=self.model_name,
                     temperature=self.temperature,
                     max_tokens=8192,
                 )
             else:
+                # 未知模型，尝试用 Claude 兜底
                 self._llm = ChatAnthropic(
                     model="claude-sonnet-5",
                     temperature=self.temperature,
                     max_tokens=8192,
                 )
-        elif HAS_ANTHROPIC and "claude" in self.model_name.lower():
+        elif HAS_ANTHROPIC and "claude" in model_lower:
             # 使用原生 anthropic SDK（轻量降级方案）
             self._llm = anthropic.Anthropic(
                 api_key=os.getenv("ANTHROPIC_API_KEY"),
