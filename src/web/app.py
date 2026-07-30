@@ -319,7 +319,7 @@ def create_ui() -> gr.Blocks:
     web = AIproduceWebUI()
 
     with gr.Blocks(title="AIproduce — 小说改剧本", css=CUSTOM_CSS,
-                   theme=gr.themes.Dark()) as app:
+                   theme=gr.themes.Ocean()) as app:
 
         # ── 标题 ──────────────────────────────
         gr.HTML("""
