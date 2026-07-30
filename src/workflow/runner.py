@@ -24,47 +24,56 @@ class WorkflowRunner:
 
     def run_thin_slice(
         self,
-        project_name: str,
-        source_file_path: str,
+        project_name: str = "",
+        source_file_path: str = "",
         adaptation_format: str = "网剧",
         target_episodes: int = 24,
         episode_duration: int = 45,
         genre: str = "古装",
         model_name: str = None,
+        project_id: str = None,
+        stop_after: str = "N14",
     ) -> dict:
         if model_name is None:
             import os
             model_name = os.getenv("DEFAULT_MODEL", "claude-sonnet-5")
-        """运行 Thin Slice 验证链路：N01→N02→N03→N04→N07→N09→N11→N12
-
-        当前阶段1仅实现 N01→N02→N03。
-        阶段2-3 将依次实现剩余节点。
-        """
+        """运行 Thin Slice 验证链路，支持分段执行"""
         self.state.started_at = datetime.now()
         results = {}
+
+        def _should_stop(node: str) -> bool:
+            return node == stop_after
 
         print("\n" + "=" * 60)
         print("🚀 AIproduce Thin Slice 工作流")
         print("=" * 60)
 
-        # ─── N01: 项目初始化 ───────────────────
-        print("\n[N01] 项目初始化...")
-        n01_result = self._run_n01(
-            project_name=project_name,
-            source_file_path=source_file_path,
-            adaptation_format=adaptation_format,
-            target_episodes=target_episodes,
-            episode_duration=episode_duration,
-            genre=genre,
-            model_name=model_name,
-        )
-        project_id = n01_result["project_id"]
-        self.state.set_node_status("N01", NodeStatus.PASSED)
-        self.state.set_node_output("N01", n01_result)
-        results["N01"] = n01_result
-        print(f"  ✅ 项目创建成功: {project_id}")
-        print(f"  📂 工作区: {n01_result['workspace_dir']}")
-        print(f"  📊 原著字数: {n01_result['total_words']}")
+        # ─── N01: 项目初始化（已有 project_id 则跳过）───
+        if project_id:
+            print(f"\n[N01] 使用已有项目: {project_id}")
+            n01_result = {"project_id": project_id, "status": "existing"}
+            results["N01"] = n01_result
+        else:
+            print("\n[N01] 项目初始化...")
+            n01_result = self._run_n01(
+                project_name=project_name,
+                source_file_path=source_file_path,
+                adaptation_format=adaptation_format,
+                target_episodes=target_episodes,
+                episode_duration=episode_duration,
+                genre=genre,
+                model_name=model_name,
+            )
+            project_id = n01_result["project_id"]
+            self.state.set_node_status("N01", NodeStatus.PASSED)
+            self.state.set_node_output("N01", n01_result)
+            results["N01"] = n01_result
+            print(f"  ✅ 项目创建成功: {project_id}")
+            print(f"  📂 工作区: {n01_result['workspace_dir']}")
+            print(f"  📊 原著字数: {n01_result['total_words']}")
+
+        if _should_stop("N01"):
+            return {"project_id": project_id, "results": results}
 
         # ─── N02: 原著解构 ───────────────────
         print("\n[N02] 原著文本拆分与分层摘要...")
@@ -91,6 +100,9 @@ class WorkflowRunner:
         # Save results
         self._save_results(project_id, results)
 
+        if _should_stop("N03"):
+            return {"project_id": project_id, "results": results}
+
         # ─── N04: 改编策划总纲 ───────────────────
         print("\n[N04] 改编策划总纲生成...")
         n04_result = self._run_n04(project_id=project_id, model_name=model_name)
@@ -109,6 +121,10 @@ class WorkflowRunner:
         results["N07"] = n07_result
         total_ep = n07_result.get("total_episodes", 0)
         print(f"  ✅ 分集大纲完成: {total_ep} 集")
+
+        self._save_results(project_id, results)
+        if _should_stop("N07"):
+            return {"project_id": project_id, "results": results}
 
         # ─── N09: 场次拆分 ───────────────────
         print("\n[N09] 场次拆分...")
