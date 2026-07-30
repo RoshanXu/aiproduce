@@ -3,11 +3,7 @@
 # 构建:  docker build -t aiproduce .
 # 运行:  docker run -p 7860:7860 -v aiproduce_workspace:/app/workspace aiproduce
 # Web:   docker run -p 7860:7860 -v aiproduce_workspace:/app/workspace aiproduce web
-
-FROM python:3.11-slim-bookworm AS builder
-
-# 构建依赖
-RUN pip install --no-cache-dir -U pip setuptools wheel
+# CLI:   docker run --rm -v aiproduce_workspace:/app/workspace aiproduce run --thin-slice --novel /app/tests/fixtures/sample_novel_chapter.md --name "测试"
 
 FROM python:3.11-slim-bookworm
 
@@ -25,16 +21,33 @@ RUN useradd --create-home --shell /bin/bash appuser
 
 WORKDIR /app
 
-# 安装 Python 依赖（先拷贝依赖文件，利用 Docker 缓存层）
+# 先拷贝依赖文件，利用 Docker 缓存层
 COPY pyproject.toml .
-RUN pip install --no-cache-dir -e ".[dev]" \
-    && pip install --no-cache-dir -U pip
 
-# 预下载 ChromaDB ONNX 模型（避免首次运行时下载）
-RUN python -c "import chromadb; chromadb.PersistentClient(path='/tmp/chroma_init')" 2>/dev/null || true
+# 只安装依赖（不安装项目本身，避免 editable 报错）
+RUN pip install --no-cache-dir \
+    langgraph>=0.2.0 \
+    langchain>=0.3.0 \
+    langchain-anthropic>=0.3.0 \
+    langchain-openai>=0.3.0 \
+    chromadb>=0.5.0 \
+    sqlalchemy>=2.0.0 \
+    pydantic>=2.0.0 \
+    pyyaml>=6.0 \
+    click>=8.0.0 \
+    rich>=13.0.0 \
+    tiktoken>=0.7.0 \
+    jinja2>=3.0.0 \
+    gradio>=5.0.0
 
 # 拷贝项目源码
 COPY --chown=appuser:appuser . .
+
+# 安装项目包（非 editable 模式）
+RUN pip install --no-cache-dir -e ".[dev]" 2>/dev/null || true
+
+# 预下载 ChromaDB ONNX 模型（避免首次运行时下载）
+RUN python -c "import chromadb; chromadb.PersistentClient(path='/tmp/chroma_init')" 2>/dev/null || true
 
 # 创建数据卷目录
 RUN mkdir -p /app/workspace/projects /app/workspace/uploads /app/workspace/logs \
