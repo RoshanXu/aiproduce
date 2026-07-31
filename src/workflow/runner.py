@@ -97,13 +97,15 @@ class WorkflowRunner:
             n03_result = self._run_n03(project_id=project_id, model_name=model_name)
         else:
             print("\n[N03] 跳过（使用已有资产库）")
-            n03_result = {"status": "skipped"}
+            n03_result = {"status": "skipped", "characters": {"total_characters": "?"},
+                          "world": {"world": {"core_scenes": []}}, "timeline": {"timeline": {"main_timeline": []}}}
         self.state.set_node_status("N03", NodeStatus.PASSED)
         self.state.set_node_output("N03", n03_result)
         results["N03"] = n03_result
-        print(f"  ✅ 人物: {n03_result['characters']['total_characters']} 个")
-        print(f"  ✅ 场景: {len(n03_result['world'].get('world', {}).get('core_scenes', []))} 个")
-        print(f"  ✅ 事件: {len(n03_result['timeline'].get('timeline', {}).get('main_timeline', []))} 个")
+        if n03_result.get("status") != "skipped":
+            print(f"  ✅ 人物: {n03_result['characters']['total_characters']} 个")
+            print(f"  ✅ 场景: {len(n03_result['world'].get('world', {}).get('core_scenes', []))} 个")
+            print(f"  ✅ 事件: {len(n03_result['timeline'].get('timeline', {}).get('main_timeline', []))} 个")
 
         # Save results
         self._save_results(project_id, results)
