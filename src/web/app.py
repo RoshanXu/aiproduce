@@ -65,7 +65,7 @@ class AIproduceWebUI:
                     target_episodes, episode_duration, progress=gr.Progress()):
         """阶段1: 初始化 + 解构 + 资产库"""
         if novel_file is None:
-            yield "❌ 请上传小说文件", "", "", "", "", "", "", "", ""
+            yield "❌ 请上传小说文件", "", "", "", "", "", "", "", gr.update(visible=False), gr.update(visible=False)
             return
 
         progress(0.1, desc="保存文件...")
@@ -86,7 +86,8 @@ class AIproduceWebUI:
         log += f"🎬 改编: {adaptation_format} | {target_episodes}集×{episode_duration}分钟\n"
         log += f"🤖 模型: {os.getenv('DEFAULT_MODEL', 'claude-sonnet-5')}\n\n"
         log += "⏳ 正在调用 DeepSeek 分析原著...\n"
-        yield log, "⏳ 等待中...", "⏳ 等待中...", "⏳ 等待中...", "", "", "", "", ""
+        bs = gr.update(visible=False), gr.update(visible=False)
+        yield log, "⏳ 等待中...", "⏳ 等待中...", "⏳ 等待中...", "", "", "", "", *bs
 
         try:
             from src.workflow.runner import WorkflowRunner
@@ -130,20 +131,22 @@ class AIproduceWebUI:
             log += f"\n❌ 阶段1失败: {e}\n```\n{traceback.format_exc()}\n```"
             char_text = world_text = timeline_text = ""
 
-        yield log, char_text, world_text, timeline_text, "", "", "", "", ""
+        btns = gr.update(visible=self.phase >= 1), gr.update(visible=self.phase >= 2)
+        yield log, char_text, world_text, timeline_text, "", "", "", "", *btns
 
     # ─── 阶段 2: N04 → N07 ──────────────────────
 
     def phase2_planning(self, progress=gr.Progress()):
         """阶段2: 改编策划 + 分集大纲"""
         if self.phase < 1:
-            yield "❌ 请先完成阶段1", "", "", "", "", "", "", "", ""
+            yield "❌ 请先完成阶段1", "", "", "", "", "", "", "", gr.update(visible=False), gr.update(visible=False)
             return
 
         progress(0.1, desc="生成改编策划总纲...")
         log = "## 阶段 2/3：改编策划 + 分集大纲\n\n"
         log += "⏳ 正在生成改编策划总纲和分集大纲...\n"
-        yield log, self._load_chars(), self._load_world(), self._load_timeline(), "⏳ 等待中...", "", "", "", ""
+        btns = gr.update(visible=self.phase >= 1), gr.update(visible=self.phase >= 2)
+        yield log, self._load_chars(), self._load_world(), self._load_timeline(), "⏳ 等待中...", "", "", "", *btns
 
         try:
             from src.workflow.runner import WorkflowRunner
@@ -177,20 +180,22 @@ class AIproduceWebUI:
             log += f"\n❌ 阶段2失败: {e}\n```\n{traceback.format_exc()}\n```"
             plan_text = outline_text = ""
 
-        yield log, self._load_chars(), self._load_world(), self._load_timeline(), plan_text, outline_text, "", "", ""
+        btns = gr.update(visible=self.phase >= 1), gr.update(visible=self.phase >= 2)
+        yield log, self._load_chars(), self._load_world(), self._load_timeline(), plan_text, outline_text, "", "", *btns
 
     # ─── 阶段 3: N09 → N14 ──────────────────────
 
     def phase3_script(self, progress=gr.Progress()):
         """阶段3: 场次拆分 + 剧本 + 三重校验"""
         if self.phase < 2:
-            yield "❌ 请先完成阶段1和阶段2", "", "", "", "", "", "", "", ""
+            yield "❌ 请先完成阶段1和阶段2", "", "", "", "", "", "", "", gr.update(visible=False), gr.update(visible=False)
             return
 
         progress(0.1, desc="生成剧本...")
         log = "## 阶段 3/3：剧本生成 + 三重校验\n\n"
         log += "⏳ 正在拆分场次、生成剧本、执行校验...\n"
-        yield log, self._load_chars(), self._load_world(), self._load_timeline(), self._load_plan(), self._load_outline(), "⏳ 生成中...", "", ""
+        btns = gr.update(visible=self.phase >= 1), gr.update(visible=self.phase >= 2)
+        yield log, self._load_chars(), self._load_world(), self._load_timeline(), self._load_plan(), self._load_outline(), "⏳ 生成中...", "", *btns
 
         try:
             from src.workflow.runner import WorkflowRunner
@@ -227,8 +232,9 @@ class AIproduceWebUI:
             log += f"\n❌ 阶段3失败: {e}\n```\n{traceback.format_exc()}\n```"
             script_text = validation_text = ""
 
+        btns = gr.update(visible=self.phase >= 1), gr.update(visible=self.phase >= 2)
         yield (log, self._load_chars(), self._load_world(), self._load_timeline(),
-               self._load_plan(), self._load_outline(), script_text, validation_text, "")
+               self._load_plan(), self._load_outline(), script_text, validation_text, *btns)
 
     # ─── 数据加载 ────────────────────────────────
 
@@ -398,45 +404,19 @@ def create_ui() -> gr.Blocks:
 
         # ── 事件绑定 ──────────────────────────
 
-        all_outputs = [log_output, char_output, world_output, timeline_output,
-                       plan_output, outline_output, script_output, report_output, btn_phase2, btn_phase3]
+        outputs_10 = [log_output, char_output, world_output, timeline_output,
+                      plan_output, outline_output, script_output, report_output,
+                      btn_phase2, btn_phase3]
 
-        # 阶段1: 开始 → 资产库
-        def on_phase1(*args):
-            for out in web.phase1_init(*args):
-                # out has 9 elements but we need 10 (btn_phase2, btn_phase3)
-                yield (*out, gr.update(visible=web.phase >= 1), gr.update(visible=web.phase >= 2))
         btn_phase1.click(
-            fn=on_phase1,
+            fn=web.phase1_init,
             inputs=[project_name, novel_file, adaptation_format, target_episodes, episode_duration],
-            outputs=[log_output, char_output, world_output, timeline_output,
-                     plan_output, outline_output, script_output, report_output,
-                     btn_phase2, btn_phase3],
-        )
+            outputs=outputs_10)
 
-        # 阶段2: 审核资产 → 策划大纲
-        def on_phase2():
-            for out in web.phase2_planning():
-                yield (*out, gr.update(visible=web.phase >= 1), gr.update(visible=web.phase >= 2))
-        btn_phase2.click(
-            fn=on_phase2,
-            inputs=[],
-            outputs=[log_output, char_output, world_output, timeline_output,
-                     plan_output, outline_output, script_output, report_output,
-                     btn_phase2, btn_phase3],
-        )
+        btn_phase2.click(fn=web.phase2_planning, outputs=outputs_10)
 
-        # 阶段3: 审核大纲 → 剧本
-        def on_phase3():
-            for out in web.phase3_script():
-                yield (*out, gr.update(visible=web.phase >= 1), gr.update(visible=web.phase >= 2))
-        btn_phase3.click(
-            fn=on_phase3,
-            inputs=[],
-            outputs=[log_output, char_output, world_output, timeline_output,
-                     plan_output, outline_output, script_output, report_output,
-                     btn_phase2, btn_phase3],
-        )
+        btn_phase3.click(fn=web.phase3_script,
+            outputs=outputs_10)
 
     return app
 
