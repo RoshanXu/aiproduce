@@ -338,7 +338,7 @@ class AIproduceWebUI:
         project_dir = Path("workspace/projects") / pid
         if not project_dir.exists():
             return (f"❌ 项目不存在: {pid}", "", "", "", "", "", "", "",
-                    gr.update(visible=False), gr.update(visible=False))
+                    gr.update(visible=False), gr.update(visible=False), *self._extra())
 
         self.project_id = pid
         self.project_dir = project_dir
@@ -445,7 +445,7 @@ class AIproduceWebUI:
                 self._chars_json, self._world_json, self._timeline_json,
                 self._plan_json, self._outline_json,
                 self._scripts_json, self._reports_json,
-                gr.update(visible=True), gr.update(visible=True))
+                gr.update(visible=True), gr.update(visible=True), *self._extra())
 
     def _format_scripts(self, project_dir):
         drafts = project_dir / "work" / "drafts"
