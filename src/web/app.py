@@ -95,11 +95,17 @@ class AIproduceWebUI:
 
     # ─── 阶段 1: N01 → N03 ──────────────────────
 
-    def phase1_init(self, project_name, novel_file, adaptation_format,
-                    target_episodes, episode_duration, progress=gr.Progress()):
+    def phase1_init(self, project_name=None, novel_file=None, adaptation_format=None,
+                    target_episodes=None, episode_duration=None, progress=gr.Progress(), feedback=""):
         """阶段1: 初始化 + 解构 + 资产库"""
+        # 从上次参数恢复（重新生成时用）
+        if project_name is None and self._last_phase1_args:
+            project_name, novel_file, adaptation_format, target_episodes, episode_duration = self._last_phase1_args
+        else:
+            self._last_phase1_args = (project_name, novel_file, adaptation_format, target_episodes, episode_duration)
+
         if novel_file is None:
-            yield "❌ 请上传小说文件", "", "", "", "", "", "", "", gr.update(visible=False), gr.update(visible=False)
+            yield "❌ 请上传小说文件", "", "", "", "", "", "", "", gr.update(visible=False), gr.update(visible=False), *self._extra()
             return
 
         progress(0.1, desc="保存文件...")
@@ -116,12 +122,14 @@ class AIproduceWebUI:
         }
 
         log = f"## 阶段 1/3：原著解构 + 资产库构建\n\n"
+        if feedback:
+            log += f"💬 **修改要求**: {feedback}\n\n"
         log += f"📖 原著: {novel_path.name}\n"
         log += f"🎬 改编: {adaptation_format} | {target_episodes}集×{episode_duration}分钟\n"
         log += f"🤖 模型: {os.getenv('DEFAULT_MODEL', 'claude-sonnet-5')}\n\n"
         log += "⏳ 正在调用 DeepSeek 分析原著...\n"
         bs = gr.update(visible=False), gr.update(visible=False)
-        yield log, "⏳ 等待中...", "⏳ 等待中...", "⏳ 等待中...", "", "", "", "", *bs
+        yield log, "⏳ 等待中...", "⏳ 等待中...", "⏳ 等待中...", "", "", "", "", *bs, *self._extra()
 
         try:
             from src.workflow.runner import WorkflowRunner
@@ -173,14 +181,16 @@ class AIproduceWebUI:
 
     # ─── 阶段 2: N04 → N07 ──────────────────────
 
-    def phase2_planning(self, progress=gr.Progress()):
+    def phase2_planning(self, progress=gr.Progress(), feedback=""):
         """阶段2: 改编策划 + 分集大纲"""
         if self.phase < 1:
-            yield "❌ 请先完成阶段1", "", "", "", "", "", "", "", gr.update(visible=False), gr.update(visible=False)
+            yield "❌ 请先完成阶段1", "", "", "", "", "", "", "", gr.update(visible=False), gr.update(visible=False), *self._extra()
             return
 
         progress(0.1, desc="生成改编策划总纲...")
         log = "## 阶段 2/3：改编策划 + 分集大纲\n\n"
+        if feedback:
+            log += f"💬 **修改要求**: {feedback}\n\n"
         log += "⏳ 正在生成改编策划总纲和分集大纲...\n"
         btns = gr.update(visible=self.phase >= 1), gr.update(visible=self.phase >= 2)
         yield log, getattr(self, '_chars_json', ''), getattr(self, '_world_json', ''), getattr(self, '_timeline_json', ''), "⏳ 等待中...", "", "", "", *btns, *self._extra()
@@ -225,14 +235,16 @@ class AIproduceWebUI:
 
     # ─── 阶段 3: N09 → N14 ──────────────────────
 
-    def phase3_script(self, progress=gr.Progress()):
+    def phase3_script(self, progress=gr.Progress(), feedback=""):
         """阶段3: 场次拆分 + 剧本 + 三重校验"""
         if self.phase < 2:
-            yield "❌ 请先完成阶段1和阶段2", "", "", "", "", "", "", "", gr.update(visible=False), gr.update(visible=False)
+            yield "❌ 请先完成阶段1和阶段2", "", "", "", "", "", "", "", gr.update(visible=False), gr.update(visible=False), *self._extra()
             return
 
         progress(0.1, desc="生成剧本...")
         log = "## 阶段 3/3：剧本生成 + 三重校验\n\n"
+        if feedback:
+            log += f"💬 **修改要求**: {feedback}\n\n"
         log += "⏳ 正在拆分场次、生成剧本、执行校验...\n"
         btns = gr.update(visible=self.phase >= 1), gr.update(visible=self.phase >= 2)
         yield log, getattr(self, '_chars_json', ''), getattr(self, '_world_json', ''), getattr(self, '_timeline_json', ''), getattr(self, '_plan_json', ''), getattr(self, '_outline_json', ''), "⏳ 生成中...", "", *btns, *self._extra()

@@ -1,10 +1,18 @@
-# Agent 交互式对话面板 — 设计文档
+# Agent 交互式对话面板 — 技术实现附录
 
 **版本**: v1.0
 **创建日期**: 2026-07-31
+**定位**: 本文档是 `docs/workbench-design.md` §10.6（交互操作）的技术实现附录。设计概述已合并到主文档，本文档提供：
+- 模板对话引擎的代码级设计
+- 完整的 13 角色心情响应库和流程改进建议库
+- 前后端 API 契约
+- LLM System Prompt 模板
+- 实施优先级与工时估算
+- 对话示例库
+
 **前置阅读**:
-- `docs/workbench-design.md` — 工作台整体设计（尤其是第十章 Agent 办公室视图 + 10.6 交互操作）
-- `docs/virtual-office-research.md` — 虚拟办公室调研（OctoOffice 的"直接 Agent 对话"功能）
+- `docs/workbench-design.md` — 工作台整体设计（§10.6 交互操作已包含对话面板设计概述）
+- `docs/virtual-office-research.md` — 虚拟办公室调研
 - `docs/workbench-dev-startup.md` — 前端开发启动文档
 
 ---

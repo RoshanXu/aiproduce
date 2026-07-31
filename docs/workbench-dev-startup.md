@@ -4,6 +4,7 @@
 **前置阅读**:
 - `docs/workbench-design.md` — 工作台整体设计（两视图 + 交互 + 角色人设）
 - `docs/virtual-office-research.md` — 虚拟 Agent 办公室调研（渲染方案 + 参考项目）
+- `docs/agent-interactive-chat-design.md` — Agent 交互式对话面板技术实现附录（模板引擎、响应库、API 契约）
 
 ---
 
@@ -834,7 +835,7 @@ interface OfficeStoreState {
 - [ ] 状态色点（绿/蓝/红/灰/橙）
 - [ ] 走动动画（CSS `transition` 在两个位置间移动）
 - [ ] `SpeechBubble`（绝对定位气泡，随走动移动）
-- [ ] `AgentDetailPanel`（点击 Emoji 弹出详情）
+- [ ] `AgentDetailPanel`（点击 Emoji 弹出详情。**注意**：需实现为 Tab 切换面板——[对话]/[数据]/[Prompt] 三 Tab，对话 Tab 默认激活。设计见 `workbench-design.md` §10.6，实现细节见 `agent-interactive-chat-design.md`）
 - [ ] `useOfficeStore` + Mock 数据注入
 - [ ] `MiniMap`
 

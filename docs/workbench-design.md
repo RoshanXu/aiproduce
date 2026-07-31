@@ -1002,7 +1002,7 @@ Agent 基于自己的"工作经验"，对工作流程提出改进意见。这是
 | 📏 **方正** 方正则 | 不苟言笑、规则至上 | "规矩就是规矩。" | 中 |
 | 📖 **总编** 温如玉 | 话少分量重、尊重原稿、用铅笔 | "你让读者喘口气，然后再给一拳。" | 中 |
 
-> 完整13角色的心情响应库和流程改进建议库见 `docs/agent-interactive-chat-design.md` §6.3。
+> 完整13角色的心情响应库、流程改进建议库、模板对话引擎、前后端 API 契约、LLM System Prompt 模板和对话示例库见 `docs/agent-interactive-chat-design.md`（技术实现附录）。
 
 ---
 
@@ -1137,6 +1137,14 @@ interface OfficeState {
   breakRoomOccupants: string[];
   restroomOccupants: string[];
   globalAnnouncement?: string; // "阶段四完成！茶歇时间~"
+  // 对话相关
+  activeConversation?: string;  // 当前正在对话的 agentId（画布高亮用）
+  agentMessages?: Array<{       // Agent 主动推送的消息队列
+    agentId: string;
+    message: string;
+    priority: 'low' | 'normal' | 'high' | 'blocking';
+    timestamp: string;
+  }>;
 }
 ```
 
