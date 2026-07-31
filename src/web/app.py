@@ -63,6 +63,9 @@ CUSTOM_CSS = """
 .report-card { margin-bottom: 6px; }
 .scene-body { margin: 8px 0; font-size: 0.95rem; line-height: 1.7; color: #334155; }
 .scene-body p { margin: 2px 0; }
+.plan-field { margin: 10px 0; }
+.plan-field .c-label { display: block; margin-bottom: 2px; }
+.plan-value { font-size: 0.92rem; color: #334155; line-height: 1.65; margin-top: 2px; }
 """
 
 
@@ -650,7 +653,7 @@ class AIproduceWebUI:
         return f"<div class='card-grid'>{''.join(cards)}</div>"
 
     def _cards_plan(self, data):
-        """策划总纲 HTML — 适配 LLM 产出的中文章节结构"""
+        """策划总纲 HTML — 每个章节独立卡片，长文本纵向排列"""
         if not data: return "<p style='color:#64748b'>暂无数据</p>"
         bp = data.get("blueprint", data)
         root = bp.get("改编策划总纲", bp)
@@ -668,14 +671,14 @@ class AIproduceWebUI:
                             items_html.append(f"<li><b>{name}</b>：{detail}</li>")
                         else:
                             items_html.append(f"<li>{item}</li>")
-                    parts.append(f"<div class='card-row'><span class='c-label'>{k}</span><ul style='margin:0;padding-left:16px'>{''.join(items_html)}</ul></div>")
+                    parts.append(f"<div class='plan-field'><div class='c-label'>{k}</div><ul style='margin:4px 0;padding-left:16px'>{''.join(items_html)}</ul></div>")
                 elif isinstance(v, dict):
                     sub_items = []
                     for sk, sv in v.items():
                         sub_items.append(f"<li><b>{sk}</b>：{sv}</li>")
-                    parts.append(f"<div class='card-row'><span class='c-label'>{k}</span><ul style='margin:0;padding-left:16px'>{''.join(sub_items)}</ul></div>")
+                    parts.append(f"<div class='plan-field'><div class='c-label'>{k}</div><ul style='margin:4px 0;padding-left:16px'>{''.join(sub_items)}</ul></div>")
                 else:
-                    parts.append(f"<div class='card-row'><span class='c-label'>{k}</span><span>{v}</span></div>")
+                    parts.append(f"<div class='plan-field'><div class='c-label'>{k}</div><div class='plan-value'>{v}</div></div>")
             parts.append("</div>")
         if not parts:
             return f"<pre style='color:#64748b;font-size:0.85em'>{json.dumps(bp, ensure_ascii=False, indent=2)[:1500]}</pre>"
