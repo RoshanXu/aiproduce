@@ -48,12 +48,12 @@ CUSTOM_CSS = """
 .footer { text-align: center; color: #475569; font-size: 0.8rem; margin-top: 2rem; }
 /* 卡片样式 */
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
-.card { background: rgba(30,41,59,0.8); border: 1px solid #334155; border-radius: 10px;
+.card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
     padding: 14px 16px; transition: border-color 0.2s; }
-.card:hover { border-color: #6366f1; }
-.card-title { font-weight: 700; font-size: 1rem; color: #e2e8f0; margin-bottom: 8px; }
-.card-row { display: flex; gap: 8px; margin: 4px 0; font-size: 0.9rem; color: #cbd5e1; }
-.c-label { color: #6366f1; min-width: 48px; font-size: 0.8rem; font-weight: 600; }
+.card:hover { border-color: #6366f1; box-shadow: 0 2px 8px rgba(99,102,241,0.1); }
+.card-title { font-weight: 700; font-size: 1rem; color: #1e293b; margin-bottom: 8px; }
+.card-row { display: flex; gap: 8px; margin: 4px 0; font-size: 0.9rem; color: #334155; }
+.c-label { color: #6366f1; min-width: 56px; font-size: 0.8rem; font-weight: 600; }
 .char-card { border-left: 3px solid #a78bfa; }
 .world-card { border-left: 3px solid #22c55e; }
 .time-card { border-left: 3px solid #f59e0b; }
@@ -61,7 +61,8 @@ CUSTOM_CSS = """
 .outline-card { border-left: 3px solid #ec4899; }
 .script-card { border-left: 3px solid #8b5cf6; margin-bottom: 8px; }
 .report-card { margin-bottom: 6px; }
-.scene-body { margin: 8px 0; font-size: 0.95rem; line-height: 1.7; color: #e2e8f0; }
+.scene-body { margin: 8px 0; font-size: 0.95rem; line-height: 1.7; color: #334155; }
+.scene-body p { margin: 2px 0; }
 """
 
 
@@ -254,7 +255,7 @@ class AIproduceWebUI:
                 loc = meta.get("scene_location", "?")
                 scripts_html.append(f"<div class='card script-card'><div class='card-title'>📝 {sid} | 📍 {loc}</div>")
                 desc = s.get("scene_description", {}).get("content", "")
-                if desc: scripts_html.append(f"<p style='color:#94a3b8'>{desc[:300]}</p>")
+                if desc: scripts_html.append(f"<p style='color:#64748b'>{desc[:300]}</p>")
                 scripts_html.append("<div class='scene-body'>")
                 for item in s.get("body", [])[:20]:
                     ch = item.get("character", "")
@@ -263,7 +264,7 @@ class AIproduceWebUI:
                     if ch:
                         scripts_html.append(f"<p><b style='color:#a78bfa'>{ch}</b>：{c}</p>")
                     elif prefix == "▲":
-                        scripts_html.append(f"<p style='color:#94a3b8'>▲ {c}</p>")
+                        scripts_html.append(f"<p style='color:#64748b'>▲ {c}</p>")
                     else:
                         scripts_html.append(f"<p>{c}</p>")
                 scripts_html.append("</div></div>")
@@ -374,12 +375,12 @@ class AIproduceWebUI:
                         scripts_parts.append(
                             f"<div class='card script-card'><div class='card-title'>📝 {meta.get('scene_id','?')} | 📍 {meta.get('scene_location','?')}</div>")
                         desc = d.get("scene_description", {}).get("content", "")
-                        if desc: scripts_parts.append(f"<p style='color:#94a3b8'>{desc[:300]}</p>")
+                        if desc: scripts_parts.append(f"<p style='color:#64748b'>{desc[:300]}</p>")
                         for item in d.get("body", [])[:20]:
                             ch = item.get("character", "")
                             c = item.get("content", "")
                             if ch: scripts_parts.append(f"<p><b style='color:#a78bfa'>{ch}</b>：{c}</p>")
-                            else: scripts_parts.append(f"<p style='color:#94a3b8'>▲ {c}</p>")
+                            else: scripts_parts.append(f"<p style='color:#64748b'>▲ {c}</p>")
                         scripts_parts.append("</div>")
                     except: pass
             self._scripts_json = "".join(scripts_parts)
@@ -567,12 +568,21 @@ class AIproduceWebUI:
         basic = data.get("basic_settings", {})
         culture = data.get("culture_details", {})
         scenes = data.get("core_scenes", [])
+        # 英文 key → 中文标签
+        CN = {
+            "era_background": "时代背景", "geography": "地理疆域", "core_factions": "核心势力",
+            "social_hierarchy": "社会阶层", "universal_rules": "通用规则",
+            "costume_rules": "服饰规制", "food_and_items": "饮食器物",
+            "etiquette_and_titles": "礼仪称谓", "customs_and_institutions": "习俗制度",
+        }
         cards = []
         # 基础设定
         items = []
         for k, v in basic.items():
             if v and v != "待补充":
-                items.append(f"<div class='card-row'><span class='c-label'>{k}</span><span>{v}</span></div>")
+                label = CN.get(k, k)
+                if isinstance(v, list): v = "、".join(v)
+                items.append(f"<div class='card-row'><span class='c-label'>{label}</span><span>{v}</span></div>")
         if items:
             cards.append("<div class='card world-card'><div class='card-title'>🌍 基础设定</div>"
                          + "".join(items) + "</div>")
@@ -580,7 +590,9 @@ class AIproduceWebUI:
         items = []
         for k, v in culture.items():
             if v and v != "待补充":
-                items.append(f"<div class='card-row'><span class='c-label'>{k}</span><span>{v}</span></div>")
+                label = CN.get(k, k)
+                if isinstance(v, list): v = "、".join(v)
+                items.append(f"<div class='card-row'><span class='c-label'>{label}</span><span>{v}</span></div>")
         if items:
             cards.append("<div class='card world-card'><div class='card-title'>📜 文化细节</div>"
                          + "".join(items) + "</div>")
@@ -596,7 +608,7 @@ class AIproduceWebUI:
             cards.append("<div class='card world-card'><div class='card-title'>🏠 核心场景</div>"
                          + "".join(s_items) + "</div>")
         if not cards:
-            return f"<pre style='color:#94a3b8'>{json.dumps(data, ensure_ascii=False, indent=2)[:500]}</pre>"
+            return f"<pre style='color:#64748b'>{json.dumps(data, ensure_ascii=False, indent=2)[:500]}</pre>"
         return f"<div class='card-grid'>{''.join(cards)}</div>"
 
     def _cards_timeline(self, data):
@@ -609,22 +621,32 @@ class AIproduceWebUI:
             if isinstance(ev, str):
                 cards.append(f"<div class='card time-card'><div class='card-title'>⏱️ {ev[:80]}</div></div>")
             elif isinstance(ev, dict):
-                t = ev.get("time", ev.get("time_label", ""))
-                desc = ev.get("description", ev.get("event", str(ev)))
+                # 支持多种字段名
+                t = ev.get("time_point", ev.get("time_label", ev.get("time", "?")))
+                desc = ev.get("event_description", ev.get("description", ev.get("event", "")))
+                conf = ev.get("time_confidence", "")
+                loc = ev.get("location", "")
+                chars = ev.get("involved_characters", ev.get("characters", []))
+                if isinstance(chars, list): chars = "、".join(chars)
                 cards.append(
-                    f"<div class='card time-card'><div class='card-title'>⏱️ {t}</div>"
-                    f"<div class='card-row'><span>{desc[:200]}</span></div></div>")
-        for f in (foreshadows or []):
-            if isinstance(f, dict):
-                status = f.get("status", "")
+                    f"<div class='card time-card'><div class='card-title'>⏱️ {t}"
+                    + (f" <span style='font-size:0.75em;color:#64748b'>({conf})</span>" if conf else "")
+                    + "</div>"
+                    + (f"<div class='card-row'><span>{desc[:200]}</span></div>" if desc else "")
+                    + (f"<div class='card-row'><span class='c-label'>地点</span><span>{loc}</span></div>" if loc else "")
+                    + (f"<div class='card-row'><span class='c-label'>人物</span><span>{chars}</span></div>" if chars else "")
+                    + "</div>")
+        for fv in (foreshadows or []):
+            if isinstance(fv, dict):
+                status = fv.get("status", "")
                 color = "#22c55e" if status == "resolved" else "#f59e0b" if status == "pending" else "#ef4444"
                 cards.append(
                     f"<div class='card time-card' style='border-left:3px solid {color}'>"
-                    f"<div class='card-title'>🔮 {f.get('foreshadow_id','?')} "
+                    f"<div class='card-title'>🔮 {fv.get('foreshadow_id','?')} "
                     f"<span style='color:{color};font-size:0.8em'>({status})</span></div>"
-                    f"<div class='card-row'><span>{f.get('plant_content', str(f))[:200]}</span></div></div>")
+                    f"<div class='card-row'><span>{fv.get('plant_content', str(fv))[:200]}</span></div></div>")
         if not cards:
-            return f"<pre style='color:#94a3b8'>{json.dumps(data, ensure_ascii=False, indent=2)[:500]}</pre>"
+            return f"<pre style='color:#64748b;font-size:0.85em'>{json.dumps(data, ensure_ascii=False, indent=2)[:800]}</pre>"
         return f"<div class='card-grid'>{''.join(cards)}</div>"
 
     def _cards_plan(self, data):
@@ -640,7 +662,7 @@ class AIproduceWebUI:
                 parts.append(f"<div class='card plan-card'><div class='card-title'>📌 {m.get('title',m.get('module_name','?'))}</div>"
                              f"<div class='card-row'><span>{str(m.get('content',m.get('description','')))[:300]}</span></div></div>")
         if len(parts) == 2:
-            return f"<pre style='color:#94a3b8'>{json.dumps(bp, ensure_ascii=False, indent=2)[:1000]}</pre>"
+            return f"<pre style='color:#64748b'>{json.dumps(bp, ensure_ascii=False, indent=2)[:1000]}</pre>"
         return "".join(parts)
 
     def _cards_outline(self, data):
@@ -648,7 +670,7 @@ class AIproduceWebUI:
         if not data: return "<p style='color:#64748b'>暂无数据</p>"
         episodes = data.get("episodes", data.get("outlines", []))
         if not episodes:
-            return f"<pre style='color:#94a3b8'>{json.dumps(data, ensure_ascii=False, indent=2)[:500]}</pre>"
+            return f"<pre style='color:#64748b'>{json.dumps(data, ensure_ascii=False, indent=2)[:500]}</pre>"
         cards = []
         for ep in episodes[:30]:
             if isinstance(ep, dict):
@@ -717,26 +739,26 @@ def create_ui() -> gr.Blocks:
 
         # ── 结果 Tab ──────────────────────────
         with gr.Tab("👤 人物资产"):
-            char_output = gr.HTML(label="人物资产库", value="<p style='color:#94a3b8'>阶段1完成后自动加载...</p>")
+            char_output = gr.HTML(label="人物资产库", value="<p style='color:#64748b'>阶段1完成后自动加载...</p>")
 
         with gr.Tab("🌍 世界观"):
-            world_output = gr.HTML(label="世界观设定", value="<p style='color:#94a3b8'>阶段1完成后自动加载...</p>")
+            world_output = gr.HTML(label="世界观设定", value="<p style='color:#64748b'>阶段1完成后自动加载...</p>")
 
         with gr.Tab("⏱️ 时间线"):
-            timeline_output = gr.HTML(label="时间线与伏笔", value="<p style='color:#94a3b8'>阶段1完成后自动加载...</p>")
+            timeline_output = gr.HTML(label="时间线与伏笔", value="<p style='color:#64748b'>阶段1完成后自动加载...</p>")
 
         with gr.Tab("📋 策划大纲"):
             with gr.Row():
                 with gr.Column():
-                    plan_output = gr.HTML(label="改编策划总纲", value="<p style='color:#94a3b8'>阶段2完成后自动加载...</p>")
+                    plan_output = gr.HTML(label="改编策划总纲", value="<p style='color:#64748b'>阶段2完成后自动加载...</p>")
                 with gr.Column():
-                    outline_output = gr.HTML(label="分集大纲", value="<p style='color:#94a3b8'>阶段2完成后自动加载...</p>")
+                    outline_output = gr.HTML(label="分集大纲", value="<p style='color:#64748b'>阶段2完成后自动加载...</p>")
 
         with gr.Tab("📝 剧本预览"):
-            script_output = gr.HTML(label="生成剧本", value="<p style='color:#94a3b8'>阶段3完成后自动加载...</p>")
+            script_output = gr.HTML(label="生成剧本", value="<p style='color:#64748b'>阶段3完成后自动加载...</p>")
 
         with gr.Tab("✅ 校验报告"):
-            report_output = gr.HTML(label="校验报告", value="<p style='color:#94a3b8'>阶段3完成后自动加载...</p>")
+            report_output = gr.HTML(label="校验报告", value="<p style='color:#64748b'>阶段3完成后自动加载...</p>")
 
         # ── 加载已有项目 ──────────────────────
         with gr.Row():
