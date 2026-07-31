@@ -66,6 +66,9 @@ CUSTOM_CSS = """
 .plan-field { margin: 10px 0; }
 .plan-field .c-label { display: block; margin-bottom: 2px; }
 .plan-value { font-size: 0.92rem; color: #334155; line-height: 1.65; margin-top: 2px; }
+.char-field { margin: 5px 0; }
+.char-field .c-label { display: inline-block; min-width: 48px; vertical-align: top; }
+.char-field span:last-child { display: inline-block; max-width: calc(100% - 56px); }
 """
 
 
@@ -563,16 +566,39 @@ class AIproduceWebUI:
                 identity = identity or asset.get("core_identity", "")
                 personality = personality or asset.get("core_personality", "")
                 speech = speech or asset.get("speech_style", "")
+            # 新字段
+            appearance = c.get("appearance", "")
+            arc = c.get("character_arc", "")
+            conflict = c.get("inner_conflict", "")
+            exp_list = c.get("key_experiences", "")
+            behaviors = c.get("signature_behaviors", "")
+            relations = c.get("relationships", {})
+            if asset:
+                appearance = appearance or asset.get("appearance", "")
+                arc = arc or asset.get("character_arc", "")
+                conflict = conflict or asset.get("inner_conflict", "")
+                exp_list = exp_list or asset.get("key_experiences", "")
+                behaviors = behaviors or asset.get("signature_behaviors", "")
+                relations = relations or asset.get("relationships", {})
+
             fields = []
-            if identity: fields.append(f"<span class='c-label'>身份</span><span>{identity}</span>")
-            if personality: fields.append(f"<span class='c-label'>性格</span><span>{personality}</span>")
-            if speech: fields.append(f"<span class='c-label'>语言</span><span>{speech}</span>")
-            if goal: fields.append(f"<span class='c-label'>目标</span><span>{goal}</span>")
+            if identity: fields.append(f"<div class='char-field'><span class='c-label'>身份</span><span>{identity}</span></div>")
+            if appearance: fields.append(f"<div class='char-field'><span class='c-label'>外貌</span><span>{appearance}</span></div>")
+            if personality: fields.append(f"<div class='char-field'><span class='c-label'>性格</span><span>{personality}</span></div>")
+            if speech: fields.append(f"<div class='char-field'><span class='c-label'>语言</span><span>{speech}</span></div>")
+            if behaviors: fields.append(f"<div class='char-field'><span class='c-label'>习惯</span><span>{behaviors}</span></div>")
+            if goal: fields.append(f"<div class='char-field'><span class='c-label'>目标</span><span>{goal}</span></div>")
+            if conflict: fields.append(f"<div class='char-field'><span class='c-label'>冲突</span><span>{conflict}</span></div>")
+            if arc: fields.append(f"<div class='char-field'><span class='c-label'>弧光</span><span>{arc}</span></div>")
+            if exp_list: fields.append(f"<div class='char-field'><span class='c-label'>经历</span><span>{exp_list}</span></div>")
+            if relations and isinstance(relations, dict):
+                rel_text = "；".join(f"{k}: {v}" for k, v in list(relations.items())[:5])
+                if rel_text: fields.append(f"<div class='char-field'><span class='c-label'>关系</span><span>{rel_text}</span></div>")
             if not fields:
-                fields.append(f"<span>{c.get('core_identity', str(c)[:100])}</span>")
+                fields.append(f"<div class='char-field'><span>{c.get('core_identity', str(c)[:100])}</span></div>")
             cards.append(
                 f"<div class='card char-card'><div class='card-title'>🎭 {name}</div>"
-                + "".join(f"<div class='card-row'>{f}</div>" for f in fields)
+                + "".join(fields)
                 + "</div>")
         return f"<div class='card-grid'>{''.join(cards)}</div>"
 
@@ -610,17 +636,32 @@ class AIproduceWebUI:
         if items:
             cards.append("<div class='card world-card'><div class='card-title'>📜 文化细节</div>"
                          + "".join(items) + "</div>")
-        # 核心场景
-        if scenes:
-            s_items = []
-            for s in scenes:
-                if isinstance(s, dict):
-                    s_items.append(f"<div class='card-row'><span class='c-label'>📍 {s.get('scene_name','?')}</span>"
-                                   f"<span>{s.get('space_type','')} - {s.get('core_function','')}</span></div>")
-                else:
-                    s_items.append(f"<div class='card-row'>📍 {s}</div>")
-            cards.append("<div class='card world-card'><div class='card-title'>🏠 核心场景</div>"
-                         + "".join(s_items) + "</div>")
+        # 核心场景（每个场景独立卡片，含视觉细节）
+        for s in scenes:
+            if isinstance(s, dict):
+                sn = s.get("scene_name", "?")
+                st = s.get("space_type", "")
+                vf = s.get("visual_features", "")
+                layout = s.get("spatial_layout", "")
+                lighting = s.get("lighting", "")
+                camera = s.get("camera_suggestions", "")
+                tags = s.get("atmosphere_tags", [])
+                func = s.get("core_function", "")
+                scene_html = (f"<div class='card world-card'><div class='card-title'>🏠 {sn}"
+                              + (f" <span style='font-size:0.75em;color:#64748b'>{st}</span>" if st else "")
+                              + "</div>"
+                              + (f"<div class='card-row'><span class='c-label'>功能</span><span>{func}</span></div>" if func else "")
+                              + (f"<div class='card-row'><span class='c-label'>布局</span><span>{layout}</span></div>" if layout else "")
+                              + (f"<div class='card-row'><span class='c-label'>视觉</span><span>{vf}</span></div>" if vf else "")
+                              + (f"<div class='card-row'><span class='c-label'>光线</span><span>{lighting}</span></div>" if lighting else "")
+                              + (f"<div class='card-row'><span class='c-label'>镜头</span><span>{camera}</span></div>" if camera else ""))
+                if tags and isinstance(tags, list):
+                    tag_html = " ".join(f"<span style='display:inline-block;background:#e0e7ff;color:#4338ca;padding:2px 8px;border-radius:12px;font-size:0.75em;margin:2px'>{t}</span>" for t in tags)
+                    scene_html += f"<div class='card-row'><span class='c-label'>Tags</span><span>{tag_html}</span></div>"
+                scene_html += "</div>"
+                cards.append(scene_html)
+            else:
+                cards.append(f"<div class='card world-card'><div class='card-title'>🏠 {s}</div></div>")
         if not cards:
             return f"<pre style='color:#64748b'>{json.dumps(data, ensure_ascii=False, indent=2)[:500]}</pre>"
         return f"<div class='card-grid'>{''.join(cards)}</div>"
