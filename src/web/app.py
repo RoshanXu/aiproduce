@@ -615,47 +615,65 @@ class AIproduceWebUI:
         return f"<div class='card-grid'>{''.join(cards)}</div>"
 
     def _cards_timeline(self, data):
-        """时间线卡片 HTML"""
+        """时间线卡片 HTML - 伏笔嵌套在对应事件内"""
         if not data: return "<p style='color:#64748b'>暂无数据</p>"
         events = data.get("main_timeline", data.get("events", []))
         foreshadows = data.get("foreshadow_table", [])
+        import re as _re
+        conf_cn = {"exact":"精确","estimated":"估算","fuzzy":"模糊"}
+        # 伏笔按 source_chunk_id 分组
+        f_by_chunk = {}
+        for fv in (foreshadows or []):
+            if isinstance(fv, dict):
+                cid = fv.get("source_chunk_id", "__none__")
+                f_by_chunk.setdefault(cid, []).append(fv)
         cards = []
         for ev in (events or []):
             if isinstance(ev, str):
-                cards.append(f"<div class='card time-card'><div class='card-title'>⏱️ {ev[:80]}</div></div>")
-            elif isinstance(ev, dict):
-                # 支持多种字段名，清洗LLM怪异时间表述
-                t = ev.get("time_point", ev.get("time_label", ev.get("time", "?")))
-                import re as _re
-                t = _re.sub(r'^第(?=全文|全篇)', '', t)
-                t = _re.sub(r'(?<=文|篇)章$', '', t)
-                desc = ev.get("event_description", ev.get("description", ev.get("event", "")))
-                conf = ev.get("time_confidence", "")
-                cn = {"exact":"精确","estimated":"估算","fuzzy":"模糊"}.get(conf, conf)
-                loc = ev.get("location", "")
-                chars = ev.get("involved_characters", ev.get("characters", []))
-                if isinstance(chars, list): chars = "、".join(chars)
-                cards.append(
-                    f"<div class='card time-card'><div class='card-title'>📅 {t}"
+                cards.append(f"<div class='card time-card'><div class='card-title'>📅 {ev[:80]}</div></div>")
+                continue
+            if not isinstance(ev, dict): continue
+            t = ev.get("time_point", ev.get("time_label", ev.get("time", "?")))
+            t = _re.sub(r'^第(?=全文|全篇)', '', t)
+            t = _re.sub(r'(?<=文|篇)章$', '', t)
+            desc = ev.get("event_description", ev.get("description", ev.get("event", "")))
+            cn = conf_cn.get(ev.get("time_confidence",""), ev.get("time_confidence",""))
+            loc = ev.get("location", "")
+            chars = ev.get("involved_characters", ev.get("characters", []))
+            if isinstance(chars, list): chars = "、".join(chars)
+            ev_id = ev.get("event_id", "")
+            cid = ev.get("source_chunk_id", "")
+            card = (f"<div class='card time-card'><div class='card-title'>📅 {t}"
                     + (f" <span style='font-size:0.75em;color:#64748b'>({cn})</span>" if cn else "")
                     + "</div>"
-                    + (f"<div class='card-row'><span>{desc[:200]}</span></div>" if desc else "")
+                    + (f"<div class='card-row'><span>{desc[:250]}</span></div>" if desc else "")
                     + (f"<div class='card-row'><span class='c-label'>地点</span><span>{loc}</span></div>" if loc else "")
-                    + (f"<div class='card-row'><span class='c-label'>人物</span><span>{chars}</span></div>" if chars else "")
-                    + "</div>")
-        for fv in (foreshadows or []):
-            if isinstance(fv, dict):
-                status = fv.get("status", "")
-                color = "#22c55e" if status == "resolved" else "#f59e0b" if status == "pending" else "#ef4444"
+                    + (f"<div class='card-row'><span class='c-label'>人物</span><span>{chars}</span></div>" if chars else ""))
+            # 嵌套伏笔
+            related = f_by_chunk.pop(cid, []) + f_by_chunk.pop(ev_id, [])
+            for fv in related:
+                status = fv.get("status","")
+                color = "#22c55e" if status=="resolved" else "#f59e0b" if status=="pending" else "#ef4444"
+                card += (f"<div style='margin-top:8px;padding:8px;background:#fffbeb;border-radius:6px;border-left:3px solid {color}'>"
+                         f"<b style='color:{color}'>🔮 {fv.get('foreshadow_id','?')}</b>"
+                         f" <span style='font-size:0.75em;color:#64748b'>({status})</span>"
+                         f"<div style='margin-top:2px;font-size:0.85em'>{fv.get('plant_content',str(fv))[:200]}</div></div>")
+            card += "</div>"
+            cards.append(card)
+        # 未匹配的伏笔
+        for leftovers in f_by_chunk.values():
+            for fv in leftovers:
+                if not isinstance(fv, dict): continue
+                status = fv.get("status","")
+                color = "#22c55e" if status=="resolved" else "#f59e0b" if status=="pending" else "#ef4444"
                 cards.append(
                     f"<div class='card time-card' style='border-left:3px solid {color}'>"
                     f"<div class='card-title'>🔮 {fv.get('foreshadow_id','?')} "
                     f"<span style='color:{color};font-size:0.8em'>({status})</span></div>"
-                    f"<div class='card-row'><span>{fv.get('plant_content', str(fv))[:200]}</span></div></div>")
+                    f"<div class='card-row'><span>{fv.get('plant_content',str(fv))[:200]}</span></div></div>")
         if not cards:
-            return f"<pre style='color:#64748b;font-size:0.85em'>{json.dumps(data, ensure_ascii=False, indent=2)[:800]}</pre>"
+            return f"<pre style='color:#64748b;font-size:0.85em'>" + json.dumps(data, ensure_ascii=False, indent=2)[:800] + "</pre>"
         return f"<div class='card-grid'>{''.join(cards)}</div>"
-
     def _cards_plan(self, data):
         """策划总纲 HTML — 每个章节独立卡片，长文本纵向排列"""
         if not data: return "<p style='color:#64748b'>暂无数据</p>"
