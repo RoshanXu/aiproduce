@@ -22,6 +22,7 @@ class CharacterAsset(BaseModel):
     relationships: dict[str, str] = Field(default_factory=dict, description="与其他核心人物的关系 {人物ID: 关系描述}")
     character_arc: Optional[str] = Field(default=None, description="从开篇到结局的性格/身份变化")
     signature_behaviors: Optional[str] = Field(default=None, description="标志性习惯动作/偏好")
+    inner_conflict: Optional[str] = Field(default=None, description="核心欲望 vs 内在恐惧、价值观矛盾")
     conflicts: Optional[str] = Field(default=None, description="原著中存在的设定矛盾点")
 
     # 版本管理
