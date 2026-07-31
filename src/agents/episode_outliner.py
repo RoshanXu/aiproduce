@@ -43,10 +43,7 @@ class EpisodeOutlinerAgent(AgentBase):
             context = self._load_context(project_id)
 
             # 生成大纲
-            if self.prompt_template:
-                outline = self._llm_generate(context)
-            else:
-                outline = self._template_generate(context)
+            outline = self._llm_generate(context)
 
             # 保存
             self._save_outline(project_id, outline)
@@ -110,57 +107,12 @@ class EpisodeOutlinerAgent(AgentBase):
 请输出完整的JSON格式分集大纲。
 """
 
-        try:
-            response = self.call_llm(user_input=prompt)
-            json_match = re.search(r"\{.*\}", response, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-        except Exception as e:
-            node_logger.warn(f"LLM 分集大纲生成失败: {e}")
-
-        return self._template_generate(context)
-
-    def _template_generate(self, context: dict) -> dict:
-        """模板生成（降级方案）"""
-        total_ep = context.get("episodes", 24)
-        act1_end = total_ep // 4
-        act2_end = total_ep * 3 // 4
-        main_chars = context.get("main_characters", ["主角"])
-
-        episodes = []
-        for ep in range(1, total_ep + 1):
-            if ep <= act1_end:
-                act = "第一幕"
-            elif ep <= act2_end:
-                act = "第二幕"
-            else:
-                act = "第三幕"
-
-            episodes.append({
-                "episode_id": f"EP{ep:02d}",
-                "episode_number": ep,
-                "act": act,
-                "core_conflict": f"第{ep}集核心冲突（待LLM分析补充）",
-                "hook": f"第{ep}集结尾钩子（待LLM分析补充）",
-                "hook_type": "悬念",
-                "hook_rating": "B",
-                "main_plot_ratio": 65.0,
-                "subplot_ratios": {},
-                "key_turning_points": [],
-                "character_growth_nodes": [],
-                "foreshadow_planting": [],
-                "summary": f"第{ep}集内容摘要（待LLM分析补充）。涉及人物：{'、'.join(main_chars[:3])}",
-            })
-
-        return {
-            "total_episodes": total_ep,
-            "acts": {
-                "第一幕（建置阶段）": list(range(1, act1_end + 1)),
-                "第二幕（对抗阶段）": list(range(act1_end + 1, act2_end + 1)),
-                "第三幕（高潮结局）": list(range(act2_end + 1, total_ep + 1)),
-            },
-            "episodes": episodes,
-        }
+        import re as _re
+        response = self.call_llm(user_input=prompt)
+        json_match = _re.search(r"\{.*\}", response, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+        raise RuntimeError("LLM 分集大纲返回格式异常，未找到有效 JSON")
 
     def _save_outline(self, project_id: str, outline: dict):
         """保存分集大纲"""

@@ -55,10 +55,7 @@ class CharacterAssetAgent(AgentBase):
             character_mentions = self._aggregate_mentions(chunks)
 
             # 3. 尝试用 LLM 做深度聚合与字段补全
-            if self.prompt_template:
-                characters = self._llm_build_characters(character_mentions, chunks[:20])
-            else:
-                characters = self._rule_based_build(character_mentions)
+            characters = self._llm_build_characters(character_mentions, chunks[:20])
 
             # 4. 去重合并
             characters = self._deduplicate(characters)
@@ -170,45 +167,13 @@ class CharacterAssetAgent(AgentBase):
   ]
 }}"""
 
-        try:
-            response = self.call_llm(user_input=prompt)
-            json_match = re.search(r"\{.*\}", response, re.DOTALL)
-            if json_match:
-                result = json.loads(json_match.group())
-                return result.get("characters", [])
-        except Exception as e:
-            node_logger.warn(f"LLM 人物构建失败: {e}")
-
-        return self._rule_based_build(mentions)
-
-    def _rule_based_build(self, mentions: dict) -> list[dict]:
-        """基于规则构建人物档案（降级方案）"""
-        characters = []
-        for idx, (name, info) in enumerate(mentions.items()):
-            char = {
-                "char_id": f"CHAR-{idx+1:03d}",
-                "name": name,
-                "aliases": list(info["aliases"]),
-                "core_identity": info["descriptions"][0] if info["descriptions"] else f"原文角色：{name}",
-                "appearance": f"根据身份'{info['descriptions'][0] if info['descriptions'] else name}'推断，待LLM补充细节",
-                "core_personality": f"根据出场行为推断，待LLM补充",
-                "speech_style": f"根据对话内容推断，待LLM补充",
-                "key_experiences": "；".join(a["summary"][:100] for a in info["appearances"][:3]),
-                "core_goal": "待分析全文后推断",
-                "relationships": {},
-                "character_arc": "待分析全文后推断",
-                "signature_behaviors": "待观察具体行为模式后推断",
-                "inner_conflict": "待分析人物动机后推断",
-                "conflicts": None,
-            }
-            characters.append(char)
-
-        # 按出场次数排序（重要人物在前）
-        characters.sort(key=lambda c: len(mentions.get(c["name"], {}).get("appearances", [])), reverse=True)
-        for i, c in enumerate(characters):
-            c["char_id"] = f"CHAR-{i+1:03d}"
-
-        return characters
+        import re as _re2
+        response = self.call_llm(user_input=prompt)
+        json_match = _re2.search(r"\{.*\}", response, re.DOTALL)
+        if json_match:
+            result = json.loads(json_match.group())
+            return result.get("characters", result if isinstance(result, list) else [])
+        raise RuntimeError("LLM 人物构建返回格式异常，未找到有效 JSON")
 
     def _deduplicate(self, characters: list[dict]) -> list[dict]:
         """去重合并（基于规则：名字相似度 + 身份重合度）"""

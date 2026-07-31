@@ -61,10 +61,7 @@ class CharacterCheckerAgent(AgentBase):
                         }
 
             # 执行校验
-            if self.prompt_template:
-                report = self._llm_check(script, char_profiles, scene_id)
-            else:
-                report = self._rule_based_check(script, char_profiles, scene_id)
+            report = self._llm_check(script, char_profiles, scene_id)
 
             # 保存报告
             self._save_report(project_id, scene_id, report)
@@ -91,73 +88,12 @@ class CharacterCheckerAgent(AgentBase):
 按五维校验标准（行为逻辑/语言风格/称谓习惯/人物关系/状态时间线）输出分级校验报告JSON。
 """
 
-        try:
-            response = self.call_llm(user_input=prompt)
-            json_match = re.search(r"\{.*\}", response, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-        except Exception as e:
-            node_logger.warn(f"LLM 校验失败: {e}")
-
-        return self._rule_based_check(script, char_profiles, scene_id)
-
-    def _rule_based_check(self, script: dict, char_profiles: dict, scene_id: str) -> dict:
-        """基于规则的降级校验"""
-        body = script.get("body", [])
-        char_names_in_script = set()
-        char_names_in_assets = set()
-
-        for c in char_profiles.values():
-            char_names_in_assets.add(c["name"])
-
-        for item in body:
-            if "character" in item:
-                char_names_in_script.add(item["character"])
-
-        # 检查是否有不在资产库中的角色
-        unknown = char_names_in_script - char_names_in_assets
-        blocking = []
-        if unknown and char_names_in_assets:  # 仅当资产库非空时才报告
-            blocking.append({
-                "char_id": "unknown",
-                "field": "existence",
-                "deviation": f"剧本中出现未在资产库中的人物: {unknown}",
-                "severity": "blocking",
-            })
-
-        # 简化的台词风格检查
-        warnings = []
-        for item in body:
-            if "content" in item and "character" in item:
-                char_name = item["character"]
-                content = item["content"]
-                # 检查是否有"突然""竟然"等禁用词
-                forbidden = ["突然", "竟然", "原来", "似乎"]
-                for word in forbidden:
-                    if word in content:
-                        warnings.append({
-                            "char_id": "unknown",
-                            "field": "speech_style",
-                            "deviation": f"{char_name}台词含小说叙述词'{word}'",
-                            "severity": "warning",
-                        })
-                        break
-
-        return {
-            "scene_id": scene_id,
-            "verdict": "PASS" if not blocking else "FAIL",
-            "blocking_issues": blocking,
-            "warning_issues": warnings,
-            "suggestion_issues": [],
-            "dimension_coverage": {
-                "behavior_logic": False,
-                "speech_style": len(warnings) > 0,
-                "naming_convention": False,
-                "relationships": False,
-                "timeline_match": False,
-            },
-            "per_character_warning_count": {},
-        }
+        import re as _re
+        response = self.call_llm(user_input=prompt)
+        json_match = _re.search(r"\{.*\}", response, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+        raise RuntimeError("LLM 人设校验返回格式异常，未找到有效 JSON")
 
     def _save_report(self, project_id: str, scene_id: str, report: dict):
         """保存校验报告"""

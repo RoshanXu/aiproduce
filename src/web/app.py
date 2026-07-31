@@ -942,6 +942,17 @@ def main():
     if not HAS_GRADIO:
         print("请先安装 Gradio: pip install gradio")
         sys.exit(1)
+    # 检查 LLM API Key
+    key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")
+    if not key:
+        print("=" * 60)
+        print("❌ 未检测到 LLM API Key！")
+        print("   请在项目根目录的 .env 文件中配置（三选一）：")
+        print("   DEEPSEEK_API_KEY=你的Key")
+        print("   ANTHROPIC_API_KEY=你的Key")
+        print("   OPENAI_API_KEY=你的Key")
+        print("=" * 60)
+        sys.exit(1)
     app = create_ui()
     app.launch(server_name="0.0.0.0", server_port=7860, share=False, show_error=True)
 

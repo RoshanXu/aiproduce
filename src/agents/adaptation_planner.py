@@ -48,10 +48,7 @@ class AdaptationPlannerAgent(AgentBase):
             context = self._load_context(project_id)
 
             # 2. 尝试 LLM 生成
-            if self.prompt_template:
-                blueprint = self._llm_generate(context)
-            else:
-                blueprint = self._template_generate(context)
+            blueprint = self._llm_generate(context)
 
             # 3. 保存到工作区
             self._save_blueprint(project_id, blueprint)
@@ -103,15 +100,12 @@ class AdaptationPlannerAgent(AgentBase):
         """LLM 生成改编策划总纲"""
         prompt = self._build_prompt(context)
 
-        try:
-            response = self.call_llm(user_input=prompt)
-            json_match = re.search(r"\{.*\}", response, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-        except Exception as e:
-            node_logger.warn(f"LLM 改编策划生成失败，使用模板: {e}")
-
-        return self._template_generate(context)
+        import re as _re
+        response = self.call_llm(user_input=prompt)
+        json_match = _re.search(r"\{.*\}", response, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+        raise RuntimeError("LLM 改编策划返回格式异常，未找到有效 JSON")
 
     def _build_prompt(self, context: dict) -> str:
         """构建 LLM prompt"""
@@ -139,46 +133,6 @@ class AdaptationPlannerAgent(AgentBase):
 
 输出格式：JSON
 """
-
-    def _template_generate(self, context: dict) -> dict:
-        """模板生成（降级方案）"""
-        chars = context.get("character_list", [])
-        main_char = chars[0]["name"] if chars else "主角"
-
-        return {
-            "core_positioning": {
-                "one_line_sell": f"以{main_char}的成长为线索的{context.get('format', '网剧')}",
-                "audience": context.get("audience", "18-35岁"),
-                "narrative_style": "正剧向（基于原文推断）",
-            },
-            "main_sub_plot_plan": {
-                "keep_lines": ["主线（待LLM分析补充）"],
-                "cut_lines": ["待分析"],
-                "merge_characters": ["待分析"],
-                "famous_scenes_top10": ["待分析"],
-            },
-            "three_act_structure": {
-                "act1": f"第1-{context.get('episodes', 24)//4}集: 建置阶段",
-                "act2": f"第{context.get('episodes', 24)//4+1}-{context.get('episodes', 24)*3//4}集: 对抗阶段",
-                "act3": f"第{context.get('episodes', 24)*3//4+1}-{context.get('episodes', 24)}集: 高潮结局",
-            },
-            "character_arc": {
-                "initial": "待补充",
-                "growth_nodes": [],
-                "final": "待补充",
-                "signature": "待补充",
-            },
-            "world_building": {
-                "era_anchor": context.get("world_brief", "待补充"),
-                "setting_adjustment": "待补充",
-                "visual_tone": "待补充",
-            },
-            "risk_warnings": [
-                "改编风险点待LLM分析补充",
-                "商业化建议：待补充",
-                "后续环节注意事项：待补充",
-            ],
-        }
 
     def _save_blueprint(self, project_id: str, blueprint: dict):
         """保存策划总纲到工作区"""

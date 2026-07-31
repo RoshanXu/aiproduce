@@ -69,58 +69,61 @@ class AgentBase(ABC):
         self._llm = None
 
     def _get_llm(self):
-        """延迟初始化 LLM 实例
-
-        支持:
-        - DeepSeek → 原生 anthropic SDK (base_url 指向 DeepSeek)
-        - Claude → langchain-anthropic 或 原生 anthropic SDK
-        - OpenAI → langchain-openai
-        """
+        """延迟初始化 LLM 实例（必须先配置 API Key）"""
         if self._llm is not None:
             return self._llm
 
         model_lower = self.model_name.lower()
 
-        # ── DeepSeek: 原生 anthropic SDK，不改模型名 ─────
         if "deepseek" in model_lower:
-            if HAS_ANTHROPIC:
-                self._llm = anthropic.Anthropic(
-                    api_key=os.getenv("DEEPSEEK_API_KEY"),
-                    base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/anthropic"),
-                )
-            else:
+            key = os.getenv("DEEPSEEK_API_KEY", "")
+            if not key:
                 raise RuntimeError(
-                    "DeepSeek 需要 anthropic SDK。请运行: pip install anthropic"
+                    "❌ 未配置 DEEPSEEK_API_KEY。\n"
+                    "   请在项目根目录的 .env 文件中设置: DEEPSEEK_API_KEY=你的Key\n"
+                    "   如果没有 .env 文件，请复制 .env.example 并填入 Key"
                 )
-
-        # ── Claude / OpenAI: langchain 或 原生 SDK ──────
-        elif HAS_LANGCHAIN:
-            if "claude" in model_lower:
-                self._llm = ChatAnthropic(
-                    model=self.model_name,
-                    temperature=self.temperature,
-                    max_tokens=8192,
-                )
-            elif "gpt" in model_lower or "openai" in model_lower:
-                self._llm = ChatOpenAI(
-                    model=self.model_name,
-                    temperature=self.temperature,
-                    max_tokens=8192,
-                )
-            else:
-                self._llm = ChatAnthropic(
-                    model="claude-sonnet-5",
-                    temperature=self.temperature,
-                    max_tokens=8192,
-                )
-        elif HAS_ANTHROPIC and "claude" in model_lower:
             self._llm = anthropic.Anthropic(
-                api_key=os.getenv("ANTHROPIC_API_KEY"),
+                api_key=key,
+                base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/anthropic"),
             )
+
+        elif "claude" in model_lower:
+            key = os.getenv("ANTHROPIC_API_KEY", "")
+            if not key:
+                raise RuntimeError(
+                    "❌ 未配置 ANTHROPIC_API_KEY。\n"
+                    "   请在项目根目录的 .env 文件中设置: ANTHROPIC_API_KEY=你的Key"
+                )
+            if HAS_LANGCHAIN:
+                self._llm = ChatAnthropic(
+                    model=self.model_name,
+                    temperature=self.temperature,
+                    max_tokens=8192,
+                )
+            elif HAS_ANTHROPIC:
+                self._llm = anthropic.Anthropic(api_key=key)
+            else:
+                raise RuntimeError("需要安装: pip install anthropic")
+
+        elif "gpt" in model_lower or "openai" in model_lower:
+            key = os.getenv("OPENAI_API_KEY", "")
+            if not key:
+                raise RuntimeError(
+                    "❌ 未配置 OPENAI_API_KEY。\n"
+                    "   请在项目根目录的 .env 文件中设置: OPENAI_API_KEY=你的Key"
+                )
+            self._llm = ChatOpenAI(
+                model=self.model_name,
+                temperature=self.temperature,
+                max_tokens=8192,
+            )
+
         else:
             raise RuntimeError(
-                "No LLM backend available. "
-                "Install langchain-anthropic or set ANTHROPIC_API_KEY."
+                f"❌ 不支持的模型: {self.model_name}\n"
+                f"   支持的模型: deepseek-v4-pro, claude-sonnet-5, gpt-4o 等\n"
+                f"   请在 .env 文件中设置 DEFAULT_MODEL"
             )
         return self._llm
 

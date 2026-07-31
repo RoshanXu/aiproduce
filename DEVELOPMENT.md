@@ -37,9 +37,9 @@ source .venv/bin/activate   # macOS/Linux
 # 2. 安装依赖
 pip install -e ".[dev]"
 
-# 3. 配置 API Key（可选，不配则使用规则降级模式）
+# 3. 配置 API Key（必须）
 cp .env.example .env
-nano .env   # 填入 Key
+nano .env   # 填入 Key，系统启动时会校验
 
 # 4. 快速验证
 aiproduce wizard
@@ -47,9 +47,9 @@ aiproduce wizard
 aiproduce run --thin-slice --novel tests/fixtures/sample_novel_chapter.md --name "测试"
 ```
 
-### 不配 API Key 也能跑
+### 必须先配置 API Key
 
-系统有完整的规则降级模式，无需任何 Key 即可跑通全流程——剧本质量不如接 LLM 时好，但适合原型验证。
+系统**要求**配置 LLM API Key 才能运行。启动时会自动检测，未配置则报错退出，确保输出质量。
 
 ---
 
@@ -249,14 +249,12 @@ AIproduce/
 |------|------|
 | `call_llm(user_input, system_prompt, output_schema)` | 统一 LLM 调用接口 |
 | `_call_via_langchain()` | LangChain 后端（Claude / DeepSeek / OpenAI） |
-| `_call_via_anthropic()` | 原生 Anthropic SDK 后端（降级） |
+| `_call_via_anthropic()` | 原生 Anthropic SDK 后端 |
 | `_render_prompt(template, **vars)` | `{{variable}}` 模板渲染 |
 | `_validate_json(response, schema)` | 结构化输出校验 |
 | 自动重试 | 最多 3 次，指数退避 |
 
-**LLM + 降级双模式**：所有 Agent 在无 API Key 时自动切换到规则模式，管道永不中断。
-
-**多模型支持**：通过 `.env` 中的 `DEFAULT_MODEL` 切换。DeepSeek 使用 OpenAI 兼容接口（`ChatOpenAI`），Claude 使用原生 SDK。
+**多模型支持**：通过 `.env` 中的 `DEFAULT_MODEL` 切换。DeepSeek 通过 Anthropic 兼容接口调用，Claude 使用原生 SDK。
 
 ### 双存储架构
 

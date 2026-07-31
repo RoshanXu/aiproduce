@@ -72,11 +72,8 @@ class TimelineAssetAgent(AgentBase):
                         "source_chunk_id": chunk.chunk_id,
                     })
 
-            # 尝试 LLM 深度分析
-            if self.prompt_template and events:
-                timeline = self._llm_build_timeline(events, foreshadows)
-            else:
-                timeline = self._rule_based_build(events, foreshadows)
+            # LLM 深度分析
+            timeline = self._llm_build_timeline(events, foreshadows)
 
             # 存储
             self._store_timeline(project_id, timeline)
@@ -108,23 +105,12 @@ class TimelineAssetAgent(AgentBase):
 3. 检查是否有明显的时间悖论或因果倒置
 """
 
-        try:
-            response = self.call_llm(user_input=prompt)
-            json_match = re.search(r"\{.*\}", response, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-        except Exception as e:
-            node_logger.warn(f"LLM 时间线构建失败: {e}")
-
-        return self._rule_based_build(events, foreshadows)
-
-    def _rule_based_build(self, events: list[dict], foreshadows: list[dict]) -> dict:
-        """降级方案"""
-        return {
-            "main_timeline": events,
-            "sub_timelines": {},
-            "foreshadow_table": foreshadows,
-        }
+        import re as _re
+        response = self.call_llm(user_input=prompt)
+        json_match = _re.search(r"\{.*\}", response, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+        raise RuntimeError("LLM 时间线构建返回格式异常，未找到有效 JSON")
 
     def _store_timeline(self, project_id: str, timeline: dict):
         """存储时间线资产"""

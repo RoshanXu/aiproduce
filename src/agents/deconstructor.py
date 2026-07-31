@@ -193,10 +193,6 @@ class DeconstructorAgent(AgentBase):
         # 仅取文本前 3000 字送给 LLM 做分析（节省 token）
         analysis_text = block_text[:3000]
 
-        if not self.prompt_template:
-            # 降级：无 LLM 时的基础规则提取
-            return self._fallback_extract(block_text, chapter_title)
-
         prompt = f"""分析以下小说片段，提取结构化信息。
 
 所属章节：{chapter_title}
@@ -223,41 +219,11 @@ class DeconstructorAgent(AgentBase):
   }}
 }}"""
 
-        try:
-            response = self.call_llm(user_input=prompt)
-            json_match = re.search(r"\{.*\}", response, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-        except Exception as e:
-            node_logger.warn(f"LLM提取失败，使用降级方案: {e}")
-
-        return self._fallback_extract(block_text, chapter_title)
-
-    def _fallback_extract(self, block_text: str, chapter_title: str) -> dict:
-        """降级方案：基于规则的基础信息提取（无需 LLM）"""
-        # 提取可能的角色名（中文姓氏+名字模式）
-        surnames = "沈李王张陈刘杨赵黄周林何马孙高罗郭郑吴徐叶苏吕宋朱胡曹许谢冯唐于董袁邓萧汪田蒋蔡潘杜魏薛余廖邹熊金陆郝白崔康毛邱秦江史顾侯邵孟龙万段雷钱汤尹黎易常武乔贺赖龚文范石姚谭姜方"
-        # 匹配: 姓氏 + 1-2个非标点非数字字符
-        name_re = re.compile(r"([" + surnames + r"])([^\s，。！？；：、""''）（\n0-9]{1,2})")
-        matches = name_re.findall(block_text)
-        # 过滤非人名的字符串
-        non_names = {"文件", "测试", "项目", "工作", "数据", "内容", "格式", "说明", "用于", "配置"}
-        characters = list(set(f"{a}{b}" for a, b in matches if f"{a}{b}" not in non_names))[:10]
-
-        return {
-            "story_unit": chapter_title,
-            "summary": block_text[:100].replace("\n", " "),
-            "core_characters": characters,
-            "core_scene": "待定位",
-            "event_type": "日常/过渡",
-            "tags": {
-                "characters": "、".join(characters) if characters else "待提取",
-                "key_events": "待提取",
-                "location": "待定位",
-                "foreshadow": "待提取",
-                "world_details": "待提取",
-            },
-        }
+        response = self.call_llm(user_input=prompt)
+        json_match = re.search(r"\{.*\}", response, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+        raise RuntimeError(f"LLM 返回格式异常，未找到有效 JSON: {response[:200]}")
 
     def _generate_chapter_summary(
         self, project_id: str, chapter_title: str,

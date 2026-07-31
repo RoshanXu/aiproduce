@@ -82,16 +82,9 @@ class FinalPolisherAgent(AgentBase):
             validation_reports = self._load_validation_reports(validation_dir, episode_id)
 
             # 执行 LLM 统稿
-            if self.prompt_template:
-                result = self._llm_polish_episode(
+            result = self._llm_polish_episode(
                     scenes=scenes,
                     episode_outline=episode_outline,
-                    validation_reports=validation_reports,
-                    episode_id=episode_id,
-                )
-            else:
-                result = self._rule_based_polish_episode(
-                    scenes=scenes,
                     validation_reports=validation_reports,
                     episode_id=episode_id,
                 )
@@ -144,16 +137,9 @@ class FinalPolisherAgent(AgentBase):
             assets = self._load_assets(project_dir)
 
             # 执行 LLM 全剧统稿
-            if self.prompt_template:
-                result = self._llm_polish_global(
+            result = self._llm_polish_global(
                     scenes=all_scenes,
                     assets=assets,
-                    episode_ids=episode_ids,
-                    project_id=project_id,
-                )
-            else:
-                result = self._rule_based_polish_global(
-                    scenes=all_scenes,
                     episode_ids=episode_ids,
                     project_id=project_id,
                 )
@@ -223,16 +209,12 @@ class FinalPolisherAgent(AgentBase):
   "rewrite_recommendation": null
 }}"""
 
-        try:
-            import re
-            response = self.call_llm(user_input=prompt)
-            json_match = re.search(r"\{.*\}", response, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-        except Exception as e:
-            node_logger.warn(f"LLM 单集统稿失败: {e}")
-
-        return self._rule_based_polish_episode(scenes, validation_reports, episode_id)
+        import re
+        response = self.call_llm(user_input=prompt)
+        json_match = re.search(r"\{.*\}", response, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+        raise RuntimeError("LLM 单集统稿返回格式异常，未找到有效 JSON")
 
     def _llm_polish_global(
         self, scenes: list[dict], assets: dict,
@@ -280,133 +262,12 @@ class FinalPolisherAgent(AgentBase):
   "final_verdict": "PASS | NEEDS_REVISION"
 }}"""
 
-        try:
-            import re
-            response = self.call_llm(user_input=prompt)
-            json_match = re.search(r"\{.*\}", response, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-        except Exception as e:
-            node_logger.warn(f"LLM 全剧统稿失败: {e}")
-
-        return self._rule_based_polish_global(scenes, episode_ids, project_id)
-
-    # ─── 规则降级统稿 ──────────────────────────────
-
-    def _rule_based_polish_episode(
-        self, scenes: list[dict], validation_reports: list[dict], episode_id: str,
-    ) -> dict:
-        """规则版单集节奏优化（无 LLM 时使用）"""
-        modifications = []
-        transition_issues = []
-        info_valleys = []
-
-        for i, scene in enumerate(scenes):
-            # 检查转场标记
-            transition = scene.get("transition", {})
-            if not transition.get("transition_type"):
-                transition_issues.append({
-                    "scene_id": scene.get("meta", {}).get("scene_id", f"scene-{i}"),
-                    "issue": "缺少转场标记（★）",
-                })
-
-            # 检查信息增量
-            info_inc = scene.get("info_increment_check", "")
-            if not info_inc or len(info_inc) < 10:
-                info_valleys.append({
-                    "scene_id": scene.get("meta", {}).get("scene_id", f"scene-{i}"),
-                    "issue": "信息增量不足或缺失",
-                })
-
-        # 评估钩子强度（基于集尾最后一场）
-        hook_rating = "C"
-        if scenes:
-            last_scene = scenes[-1]
-            transition = last_scene.get("transition", {})
-            hook_type = transition.get("transition_type", "")
-            if hook_type in ("悬念钩子", "情绪钩子"):
-                hook_rating = "B"
-            elif hook_type == "双重钩子":
-                hook_rating = "A"
-            elif not hook_type:
-                hook_rating = "D"
-
-        mod_ratio = len(modifications) / max(len(scenes), 1)
-        needs_rewrite = mod_ratio > 0.3
-
-        return {
-            "episode_id": episode_id,
-            "verdict": "NEEDS_REWRITE" if needs_rewrite else ("PASS" if not transition_issues else "NEEDS_REVISION"),
-            "hook_rating": hook_rating,
-            "hook_analysis": f"集尾钩子类型: {scenes[-1].get('transition', {}).get('transition_type', '无') if scenes else '无'}",
-            "rhythm_diagnosis": {
-                "info_valleys": info_valleys,
-                "emotion_monotone_segments": [],
-                "transition_issues": transition_issues,
-                "overall_rhythm_score": max(1, 5 - len(transition_issues) - len(info_valleys)),
-            },
-            "style_diagnosis": {
-                "character_voice_drifts": [],
-                "ai_tone_infections": [],
-                "world_inconsistencies": [],
-            },
-            "modifications": modifications,
-            "modification_ratio": round(mod_ratio, 2),
-            "rewrite_recommendation": "单集修改超过30%场次，建议重写" if needs_rewrite else None,
-        }
-
-    def _rule_based_polish_global(
-        self, scenes: list[dict], episode_ids: list[str], project_id: str,
-    ) -> dict:
-        """规则版全剧统稿（无 LLM 时使用）"""
-        # 跨集风格一致性基础检查
-        style_shifts = []
-        dialogue_contradictions = []
-
-        # 检查不同集之间的基本一致性
-        scenes_by_episode = {}
-        for scene in scenes:
-            sid = scene.get("meta", {}).get("scene_id", "")
-            ep_prefix = sid.split("-")[0] if "-" in sid else ""
-            if ep_prefix not in scenes_by_episode:
-                scenes_by_episode[ep_prefix] = []
-            scenes_by_episode[ep_prefix].append(scene)
-
-        # 简单的格式一致性检查
-        for ep_id, ep_scenes in scenes_by_episode.items():
-            missing_transitions = sum(
-                1 for s in ep_scenes
-                if not s.get("transition", {}).get("transition_type")
-            )
-            if missing_transitions > 0:
-                style_shifts.append({
-                    "episode": ep_id,
-                    "issue": f"{missing_transitions}/{len(ep_scenes)} 场缺少转场标记",
-                })
-
-        return {
-            "project_id": project_id,
-            "verdict": "PASS" if not style_shifts else "NEEDS_REVISION",
-            "episode_count": len(episode_ids),
-            "scene_count": len(scenes),
-            "character_arc_check": {
-                "characters_checked": [],
-                "arc_deviations": [],
-                "state_continuity_issues": [],
-            },
-            "cross_episode_consistency": {
-                "dialogue_contradictions": dialogue_contradictions,
-                "style_shifts": style_shifts,
-                "lore_consistency_issues": [],
-            },
-            "emotional_beat_analysis": {
-                "climax_positions": [],
-                "tension_curve_issues": [],
-                "key_node_quality": {},
-            },
-            "global_modifications": [],
-            "final_verdict": "PASS" if not style_shifts else "NEEDS_REVISION",
-        }
+        import re
+        response = self.call_llm(user_input=prompt)
+        json_match = re.search(r"\{.*\}", response, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+        raise RuntimeError("LLM 全剧统稿返回格式异常，未找到有效 JSON")
 
     # ─── 辅助方法 ────────────────────────────────
 

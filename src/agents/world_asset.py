@@ -66,11 +66,8 @@ class WorldAssetAgent(AgentBase):
                         "core_function": "待补充",
                     })
 
-            # 尝试用 LLM 做深度世界观构建
-            if self.prompt_template and world_details:
-                world = self._llm_build_world(world_details, core_scenes)
-            else:
-                world = self._rule_based_build(world_details, core_scenes)
+            # LLM 深度世界观构建
+            world = self._llm_build_world(world_details, core_scenes)
 
             # 存储
             self._store_world(project_id, world)
@@ -114,39 +111,12 @@ class WorldAssetAgent(AgentBase):
   }}
 }}"""
 
-        try:
-            response = self.call_llm(user_input=prompt)
-            json_match = re.search(r"\{.*\}", response, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-        except Exception as e:
-            node_logger.warn(f"LLM 世界观构建失败: {e}")
-
-        return self._rule_based_build(world_details, core_scenes)
-
-    def _rule_based_build(self, world_details: list[str], core_scenes: list[dict]) -> dict:
-        """降级方案"""
-        return {
-            "basic_settings": {
-                "era_background": "待补充（基于原文分析）",
-                "geography": "待补充",
-                "core_factions": [],
-                "social_hierarchy": "待补充",
-                "universal_rules": "待补充",
-            },
-            "culture_details": {
-                "costume_rules": "待补充",
-                "food_and_items": "待补充",
-                "etiquette_and_titles": "；".join(world_details[:5]) if world_details else "待补充",
-                "customs_and_institutions": "待补充",
-            },
-            "core_scenes": core_scenes,
-            "setting_confidence": {
-                "explicit": [],
-                "inferred": [],
-                "historical_reference": [],
-            },
-        }
+        import re as _re
+        response = self.call_llm(user_input=prompt)
+        json_match = _re.search(r"\{.*\}", response, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+        raise RuntimeError("LLM 世界观构建返回格式异常，未找到有效 JSON")
 
     def _store_world(self, project_id: str, world: dict):
         """存储世界观资产"""
