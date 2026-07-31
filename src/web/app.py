@@ -355,7 +355,7 @@ class AIproduceWebUI:
             if planning_dir.exists():
                 for f in sorted(planning_dir.glob("*.json")):
                     try:
-                        self._plan_json = json.dumps(json.loads(f.read_text(encoding="utf-8")), ensure_ascii=False, indent=2)
+                        self._plan_json = self._cards_plan(json.loads(f.read_text(encoding="utf-8")))
                     except: pass
 
             outlines_dir = project_dir / "work" / "outlines"
@@ -363,7 +363,7 @@ class AIproduceWebUI:
             if outlines_dir.exists():
                 for f in sorted(outlines_dir.glob("*.json")):
                     try:
-                        self._outline_json = json.dumps(json.loads(f.read_text(encoding="utf-8")), ensure_ascii=False, indent=2)
+                        self._outline_json = self._cards_outline(json.loads(f.read_text(encoding="utf-8")))
                     except: pass
 
             # 剧本及校验报告
@@ -689,19 +689,33 @@ class AIproduceWebUI:
         return "".join(parts)
 
     def _cards_outline(self, data):
-        """分集大纲 HTML"""
+        """分集大纲 HTML - 适配中文章节结构"""
         if not data: return "<p style='color:#64748b'>暂无数据</p>"
-        episodes = data.get("episodes", data.get("outlines", []))
+        root = data.get("分集大纲", data)
+        episodes = root.get("episodes", root.get("outlines", []))
+        if not episodes and isinstance(root, dict):
+            episodes = [(k, v) for k, v in root.items() if isinstance(v, dict)]
+            episodes.sort(key=lambda x: x[0])
         if not episodes:
-            return f"<pre style='color:#64748b'>{json.dumps(data, ensure_ascii=False, indent=2)[:500]}</pre>"
+            return f"<pre style='color:#64748b;font-size:0.85em'>{json.dumps(data, ensure_ascii=False, indent=2)[:800]}</pre>"
         cards = []
-        for ep in episodes[:30]:
-            if isinstance(ep, dict):
-                cards.append(
-                    f"<div class='card outline-card'><div class='card-title'>📺 {ep.get('episode_id','?')}</div>"
-                    f"<div class='card-row'><span class='c-label'>冲突</span><span>{ep.get('core_conflict','?')[:100]}</span></div>"
-                    f"<div class='card-row'><span class='c-label'>钩子</span><span>{ep.get('hook','?')[:100]}</span></div></div>")
-        return f"<div class='card-grid'>{''.join(cards)}</div>" if cards else f"<pre>{str(episodes)[:1000]}</pre>"
+        for item in episodes[:30]:
+            if isinstance(item, tuple):
+                ep_id, ep_data = item[0], item[1]
+            else:
+                ep_id = item.get("episode_id", item.get("title", "?"))
+                ep_data = item
+            conflict = ep_data.get("核心冲突", ep_data.get("core_conflict", ""))
+            hook = ep_data.get("结尾钩子", ep_data.get("hook", ""))
+            act = ep_data.get("所属幕", ep_data.get("act", ""))
+            cards.append(
+                f"<div class='card outline-card'><div class='card-title'>📺 {ep_id}"
+                + (f" <span style='font-size:0.8em;color:#64748b'>{act}</span>" if act else "")
+                + "</div>"
+                + (f"<div class='card-row'><span class='c-label'>冲突</span><span>{str(conflict)[:120]}</span></div>" if conflict else "")
+                + (f"<div class='card-row'><span class='c-label'>钩子</span><span>{str(hook)[:120]}</span></div>" if hook else "")
+                + "</div>")
+        return f"<div class='card-grid'>{''.join(cards)}</div>"
 
     def _load_file(self, filename, subdir):
         if not self.project_dir:
