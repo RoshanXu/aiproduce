@@ -75,21 +75,29 @@ class WorkflowRunner:
         if _should_stop("N01"):
             return {"project_id": project_id, "results": results}
 
-        # ─── N02: 原著解构 ───────────────────
-        print("\n[N02] 原著文本拆分与分层摘要...")
-        n02_result = self._run_n02(
-            project_id=project_id,
-            source_file_path=source_file_path,
-            model_name=model_name,
-        )
-        self.state.set_node_status("N02", NodeStatus.PASSED)
-        self.state.set_node_output("N02", n02_result)
-        results["N02"] = n02_result
-        print(f"  ✅ 解构完成: {n02_result['chunk_count']} 个语义块, {n02_result['chapter_count']} 个章节")
+        # ─── N02: 原著解构（已有项目且无源文件则跳过）───
+        if source_file_path and Path(source_file_path).exists():
+            print("\n[N02] 原著文本拆分与分层摘要...")
+            n02_result = self._run_n02(
+                project_id=project_id,
+                source_file_path=source_file_path,
+                model_name=model_name,
+            )
+            self.state.set_node_status("N02", NodeStatus.PASSED)
+            self.state.set_node_output("N02", n02_result)
+            results["N02"] = n02_result
+            print(f"  ✅ 解构完成: {n02_result['chunk_count']} 个语义块, {n02_result['chapter_count']} 个章节")
+        else:
+            print("\n[N02] 跳过（使用已有项目数据）")
+            results["N02"] = {"status": "skipped"}
 
-        # ─── N03: 首轮资产库构建（三个Agent并行） ──
-        print("\n[N03] 首轮资产库构建...")
-        n03_result = self._run_n03(project_id=project_id, model_name=model_name)
+        # ─── N03: 首轮资产库构建（已有项目则跳过）───
+        if source_file_path and Path(source_file_path).exists():
+            print("\n[N03] 首轮资产库构建...")
+            n03_result = self._run_n03(project_id=project_id, model_name=model_name)
+        else:
+            print("\n[N03] 跳过（使用已有资产库）")
+            n03_result = {"status": "skipped"}
         self.state.set_node_status("N03", NodeStatus.PASSED)
         self.state.set_node_output("N03", n03_result)
         results["N03"] = n03_result
