@@ -75,9 +75,20 @@ class AIproduceWebUI:
     def __init__(self):
         self.project_id = None
         self.project_dir = None
-        self.phase = 0  # 0=待开始, 1=资产库完成, 2=策划大纲完成, 3=全部完成
+        self.phase = 0
         self.current_novel_path = None
         self.current_params = {}
+        self._last_phase1_args = ()
+
+    def _extra(self):
+        """返回当前阶段的额外组件可见性"""
+        p = self.phase
+        return [
+            gr.update(visible=p >= 1),  # feedback_input
+            gr.update(visible=p >= 1),  # regen_row1
+            gr.update(visible=p >= 2),  # regen_row2
+            gr.update(visible=p >= 3),  # regen_row3
+        ]
 
     # ─── 阶段 1: N01 → N03 ──────────────────────
 
@@ -155,7 +166,7 @@ class AIproduceWebUI:
         yield (log, getattr(self, '_chars_json', ''),
                getattr(self, '_world_json', ''),
                getattr(self, '_timeline_json', ''),
-               "", "", "", "", *btns)
+               "", "", "", "", *btns, *self._extra())
 
     # ─── 阶段 2: N04 → N07 ──────────────────────
 
@@ -169,7 +180,7 @@ class AIproduceWebUI:
         log = "## 阶段 2/3：改编策划 + 分集大纲\n\n"
         log += "⏳ 正在生成改编策划总纲和分集大纲...\n"
         btns = gr.update(visible=self.phase >= 1), gr.update(visible=self.phase >= 2)
-        yield log, getattr(self, '_chars_json', ''), getattr(self, '_world_json', ''), getattr(self, '_timeline_json', ''), "⏳ 等待中...", "", "", "", *btns
+        yield log, getattr(self, '_chars_json', ''), getattr(self, '_world_json', ''), getattr(self, '_timeline_json', ''), "⏳ 等待中...", "", "", "", *btns, *self._extra()
 
         try:
             from src.workflow.runner import WorkflowRunner
@@ -207,7 +218,7 @@ class AIproduceWebUI:
         yield (log,
                getattr(self, '_chars_json', ''), getattr(self, '_world_json', ''), getattr(self, '_timeline_json', ''),
                getattr(self, '_plan_json', ''), getattr(self, '_outline_json', ''),
-               "", "", *btns)
+               "", "", *btns, *self._extra())
 
     # ─── 阶段 3: N09 → N14 ──────────────────────
 
@@ -221,7 +232,7 @@ class AIproduceWebUI:
         log = "## 阶段 3/3：剧本生成 + 三重校验\n\n"
         log += "⏳ 正在拆分场次、生成剧本、执行校验...\n"
         btns = gr.update(visible=self.phase >= 1), gr.update(visible=self.phase >= 2)
-        yield log, getattr(self, '_chars_json', ''), getattr(self, '_world_json', ''), getattr(self, '_timeline_json', ''), getattr(self, '_plan_json', ''), getattr(self, '_outline_json', ''), "⏳ 生成中...", "", *btns
+        yield log, getattr(self, '_chars_json', ''), getattr(self, '_world_json', ''), getattr(self, '_timeline_json', ''), getattr(self, '_plan_json', ''), getattr(self, '_outline_json', ''), "⏳ 生成中...", "", *btns, *self._extra()
 
         try:
             from src.workflow.runner import WorkflowRunner
@@ -299,7 +310,7 @@ class AIproduceWebUI:
                getattr(self, '_chars_json', ''), getattr(self, '_world_json', ''), getattr(self, '_timeline_json', ''),
                getattr(self, '_plan_json', ''), getattr(self, '_outline_json', ''),
                getattr(self, '_scripts_json', ''), getattr(self, '_reports_json', ''),
-               *btns)
+               *btns, *self._extra())
 
     # ─── 加载已有项目 ──────────────────────────
 
@@ -775,16 +786,27 @@ def create_ui() -> gr.Blocks:
                         target_episodes = gr.Slider(label="目标集数", minimum=1, maximum=100, value=24, step=1)
                         episode_duration = gr.Slider(label="单集时长(分钟)", minimum=1, maximum=120, value=45, step=5)
 
+                    # 修改反馈
+                    feedback_input = gr.Textbox(
+                        label="💬 修改要求（不满意时在此输入，然后点重新生成）",
+                        placeholder="例如：人物性格太单薄，请增加内心冲突描写；时间线不清晰，请按季节重新标注...",
+                        lines=2, visible=False)
                     # 三阶段按钮
                     with gr.Group():
                         btn_phase1 = gr.Button("▶️ 阶段1：解构原著 + 构建资产库",
                                                variant="primary", size="lg", elem_classes="primary-btn")
+                        with gr.Row(visible=False) as regen_row1:
+                            btn_regen1 = gr.Button("🔄 重新生成阶段1", variant="stop", size="sm")
                         btn_phase2 = gr.Button("🔍 审核资产库，继续策划 ➡️",
                                                variant="secondary", size="lg", elem_classes="review-btn",
                                                visible=False)
+                        with gr.Row(visible=False) as regen_row2:
+                            btn_regen2 = gr.Button("🔄 重新生成阶段2", variant="stop", size="sm")
                         btn_phase3 = gr.Button("🔍 审核策划大纲，继续写剧本 ➡️",
                                                variant="secondary", size="lg", elem_classes="review-btn",
                                                visible=False)
+                        with gr.Row(visible=False) as regen_row3:
+                            btn_regen3 = gr.Button("🔄 重新生成阶段3", variant="stop", size="sm")
 
                 with gr.Column(scale=2):
                     gr.Markdown("### 📊 运行日志")
@@ -829,20 +851,36 @@ def create_ui() -> gr.Blocks:
 
         # ── 事件绑定 ──────────────────────────
 
-        outputs_10 = [log_output, char_output, world_output, timeline_output,
-                      plan_output, outline_output, script_output, report_output,
-                      btn_phase2, btn_phase3]
+        all_outputs = [log_output, char_output, world_output, timeline_output,
+                       plan_output, outline_output, script_output, report_output,
+                       btn_phase2, btn_phase3, feedback_input, regen_row1, regen_row2, regen_row3]
+
+        def _show_review(ph):
+            return [gr.update(visible=ph >= 1), gr.update(visible=ph >= 2),
+                    gr.update(visible=ph >= 1), gr.update(visible=ph >= 1),
+                    gr.update(visible=ph >= 2), gr.update(visible=ph >= 2)]
 
         btn_phase1.click(
             fn=web.phase1_init,
             inputs=[project_name, novel_file, adaptation_format, target_episodes, episode_duration],
-            outputs=outputs_10)
+            outputs=all_outputs)
 
-        btn_phase2.click(fn=web.phase2_planning, outputs=outputs_10)
+        btn_phase2.click(fn=web.phase2_planning, outputs=all_outputs)
 
-        btn_phase3.click(fn=web.phase3_script, outputs=outputs_10)
+        btn_phase3.click(fn=web.phase3_script, outputs=all_outputs)
 
-        load_btn.click(fn=web.load_project, inputs=[project_id_input], outputs=outputs_10)
+        load_btn.click(fn=web.load_project, inputs=[project_id_input], outputs=all_outputs)
+
+        # 重新生成按钮
+        btn_regen1.click(
+            fn=lambda fb: web.phase1_init(*web._last_phase1_args, feedback=fb),
+            inputs=[feedback_input], outputs=all_outputs)
+        btn_regen2.click(
+            fn=lambda fb: web.phase2_planning(feedback=fb),
+            inputs=[feedback_input], outputs=all_outputs)
+        btn_regen3.click(
+            fn=lambda fb: web.phase3_script(feedback=fb),
+            inputs=[feedback_input], outputs=all_outputs)
 
     return app
 
