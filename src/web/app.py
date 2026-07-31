@@ -624,16 +624,20 @@ class AIproduceWebUI:
             if isinstance(ev, str):
                 cards.append(f"<div class='card time-card'><div class='card-title'>⏱️ {ev[:80]}</div></div>")
             elif isinstance(ev, dict):
-                # 支持多种字段名
+                # 支持多种字段名，清洗LLM怪异时间表述
                 t = ev.get("time_point", ev.get("time_label", ev.get("time", "?")))
+                import re as _re
+                t = _re.sub(r'^第(?=全文|全篇)', '', t)
+                t = _re.sub(r'(?<=文|篇)章$', '', t)
                 desc = ev.get("event_description", ev.get("description", ev.get("event", "")))
                 conf = ev.get("time_confidence", "")
+                cn = {"exact":"精确","estimated":"估算","fuzzy":"模糊"}.get(conf, conf)
                 loc = ev.get("location", "")
                 chars = ev.get("involved_characters", ev.get("characters", []))
                 if isinstance(chars, list): chars = "、".join(chars)
                 cards.append(
-                    f"<div class='card time-card'><div class='card-title'>⏱️ {t}"
-                    + (f" <span style='font-size:0.75em;color:#64748b'>({conf})</span>" if conf else "")
+                    f"<div class='card time-card'><div class='card-title'>📅 {t}"
+                    + (f" <span style='font-size:0.75em;color:#64748b'>({cn})</span>" if cn else "")
                     + "</div>"
                     + (f"<div class='card-row'><span>{desc[:200]}</span></div>" if desc else "")
                     + (f"<div class='card-row'><span class='c-label'>地点</span><span>{loc}</span></div>" if loc else "")
