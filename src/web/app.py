@@ -650,19 +650,35 @@ class AIproduceWebUI:
         return f"<div class='card-grid'>{''.join(cards)}</div>"
 
     def _cards_plan(self, data):
-        """策划总纲 HTML"""
+        """策划总纲 HTML — 适配 LLM 产出的中文章节结构"""
         if not data: return "<p style='color:#64748b'>暂无数据</p>"
         bp = data.get("blueprint", data)
-        cp = bp.get("core_positioning", {})
-        modules = bp.get("modules", bp.get("adaptation_modules", []))
-        parts = [f"<h3 style='color:#a78bfa'>{cp.get('one_line_sell', cp.get('title',''))}</h3>"]
-        parts.append(f"<p>🎯 {cp.get('target_audience','')} | {cp.get('genre_positioning','')}</p>")
-        for m in modules:
-            if isinstance(m, dict):
-                parts.append(f"<div class='card plan-card'><div class='card-title'>📌 {m.get('title',m.get('module_name','?'))}</div>"
-                             f"<div class='card-row'><span>{str(m.get('content',m.get('description','')))[:300]}</span></div></div>")
-        if len(parts) == 2:
-            return f"<pre style='color:#64748b'>{json.dumps(bp, ensure_ascii=False, indent=2)[:1000]}</pre>"
+        root = bp.get("改编策划总纲", bp)
+        parts = []
+        for section_title, section_content in root.items():
+            if not isinstance(section_content, dict): continue
+            parts.append(f"<div class='card plan-card'><div class='card-title'>📌 {section_title}</div>")
+            for k, v in section_content.items():
+                if isinstance(v, list):
+                    items_html = []
+                    for item in v:
+                        if isinstance(item, dict):
+                            name = item.get("线名", item.get("角色", item.get("新角色", "")))
+                            detail = item.get("内容", item.get("原因", item.get("功能", str(item))))
+                            items_html.append(f"<li><b>{name}</b>：{detail}</li>")
+                        else:
+                            items_html.append(f"<li>{item}</li>")
+                    parts.append(f"<div class='card-row'><span class='c-label'>{k}</span><ul style='margin:0;padding-left:16px'>{''.join(items_html)}</ul></div>")
+                elif isinstance(v, dict):
+                    sub_items = []
+                    for sk, sv in v.items():
+                        sub_items.append(f"<li><b>{sk}</b>：{sv}</li>")
+                    parts.append(f"<div class='card-row'><span class='c-label'>{k}</span><ul style='margin:0;padding-left:16px'>{''.join(sub_items)}</ul></div>")
+                else:
+                    parts.append(f"<div class='card-row'><span class='c-label'>{k}</span><span>{v}</span></div>")
+            parts.append("</div>")
+        if not parts:
+            return f"<pre style='color:#64748b;font-size:0.85em'>{json.dumps(bp, ensure_ascii=False, indent=2)[:1500]}</pre>"
         return "".join(parts)
 
     def _cards_outline(self, data):
