@@ -267,6 +267,124 @@ class AIproduceWebUI:
                getattr(self, '_scripts_json', ''), getattr(self, '_reports_json', ''),
                *btns)
 
+    # ─── 加载已有项目 ──────────────────────────
+
+    def load_project(self, project_id):
+        """通过项目ID加载历史数据"""
+        if not project_id or not project_id.strip():
+            return "", "", "", "", "", "", "", "", gr.update(visible=False), gr.update(visible=False)
+
+        pid = project_id.strip()
+        project_dir = Path("workspace/projects") / pid
+        if not project_dir.exists():
+            return (f"❌ 项目不存在: {pid}", "", "", "", "", "", "", "",
+                    gr.update(visible=False), gr.update(visible=False))
+
+        self.project_id = pid
+        self.project_dir = project_dir
+        self.phase = 3
+
+        # 从 SQLite 读数据
+        try:
+            from src.db.engine import init_db, get_session
+            from src.db.repository import (
+                CharacterRepository, WorldRepository, TimelineRepository,
+                ChunkRepository, SummaryRepository,
+            )
+            db_path = project_dir / "db.sqlite"
+            if not db_path.exists():
+                return (f"❌ 项目数据库不存在: {db_path}", "", "", "", "", "", "", "",
+                        gr.update(visible=False), gr.update(visible=False))
+
+            init_db(db_path)
+            with get_session() as session:
+                # 人物
+                chars = CharacterRepository(session).list_by_project(pid)
+                chars_data = [{
+                    "name": c.name, "core_identity": c.core_identity,
+                    "core_personality": c.core_personality, "speech_style": c.speech_style or "",
+                    "core_goal": c.core_goal or "", "relationships": c.asset_json.get("relationships", []) if c.asset_json else [],
+                } for c in chars]
+                self._chars_json = json.dumps(chars_data, ensure_ascii=False, indent=2)
+
+                # 世界观
+                world = WorldRepository(session).get_by_project(pid)
+                self._world_json = json.dumps(world.asset_json, ensure_ascii=False, indent=2) if world and world.asset_json else ""
+
+                # 时间线
+                timeline = TimelineRepository(session).get_by_project(pid)
+                self._timeline_json = json.dumps(timeline.asset_json, ensure_ascii=False, indent=2) if timeline and timeline.asset_json else ""
+
+            # 策划大纲
+            planning_dir = project_dir / "work" / "planning"
+            self._plan_json = ""
+            if planning_dir.exists():
+                for f in sorted(planning_dir.glob("*.json")):
+                    try:
+                        self._plan_json = json.dumps(json.loads(f.read_text(encoding="utf-8")), ensure_ascii=False, indent=2)
+                    except: pass
+
+            outlines_dir = project_dir / "work" / "outlines"
+            self._outline_json = ""
+            if outlines_dir.exists():
+                for f in sorted(outlines_dir.glob("*.json")):
+                    try:
+                        self._outline_json = json.dumps(json.loads(f.read_text(encoding="utf-8")), ensure_ascii=False, indent=2)
+                    except: pass
+
+            # 剧本及校验报告
+            self._scripts_json = self._format_scripts(project_dir)
+            self._reports_json = self._format_reports(project_dir)
+
+        except Exception as e:
+            import traceback
+            return (f"❌ 加载失败: {e}\n```\n{traceback.format_exc()}\n```",
+                    "", "", "", "", "", "", "",
+                    gr.update(visible=False), gr.update(visible=False))
+
+        log = f"✅ 已加载项目: {pid}\n"
+        log += f"   人物: {len(chars_data)} 个 | 工作目录: {project_dir}\n"
+        return (log,
+                self._chars_json, self._world_json, self._timeline_json,
+                self._plan_json, self._outline_json,
+                self._scripts_json, self._reports_json,
+                gr.update(visible=True), gr.update(visible=True))
+
+    def _format_scripts(self, project_dir):
+        drafts = project_dir / "work" / "drafts"
+        if not drafts.exists(): return ""
+        parts = []
+        for f in sorted(drafts.glob("*.json")):
+            try:
+                d = json.loads(f.read_text(encoding="utf-8"))
+                meta = d.get("meta", {})
+                parts.append(f"## {meta.get('scene_id','?')} | {meta.get('scene_location','?')}\n\n")
+                desc = d.get("scene_description", {}).get("content", "")
+                if desc: parts.append(f"▲ {desc[:300]}\n\n")
+                for item in d.get("body", [])[:20]:
+                    ch = item.get("character", "")
+                    c = item.get("content", "")
+                    parts.append(f"{'**'+ch+'**：' if ch else ''}{c}\n\n")
+                parts.append("\n---\n")
+            except: pass
+        return "".join(parts)
+
+    def _format_reports(self, project_dir):
+        vdir = project_dir / "work" / "validation"
+        if not vdir.exists(): return ""
+        parts = []
+        for f in sorted(vdir.glob("*.json")):
+            try:
+                r = json.loads(f.read_text(encoding="utf-8"))
+                parts.append(f"### {r.get('scene_id','?')} — {r.get('verdict','?')}\n")
+                for b in r.get("blocking_issues", []):
+                    parts.append(f"- ❌ {b.get('detail',str(b))[:100]}\n")
+                for w in r.get("warning_issues", []):
+                    parts.append(f"- ⚠️ {w.get('detail',str(w))[:100]}\n")
+                parts.append("\n")
+            except: pass
+        return "".join(parts)
+
     # ─── 数据加载 ────────────────────────────────
 
     def _load_chars(self):
@@ -430,6 +548,15 @@ def create_ui() -> gr.Blocks:
             report_output = gr.Textbox(label="校验报告", lines=20, max_lines=40,
                                        placeholder="阶段3完成后自动加载...")
 
+        # ── 加载已有项目 ──────────────────────
+        with gr.Row():
+            with gr.Column(scale=3):
+                project_id_input = gr.Textbox(
+                    label="📂 加载已有项目（输入项目ID查看历史结果）",
+                    placeholder="如 PROJ-20260730-1C5136")
+            with gr.Column(scale=1):
+                load_btn = gr.Button("📂 加载", variant="secondary")
+
         # ── 底部 ──────────────────────────────
         gr.HTML('<div class="footer">AIproduce v0.1.0 · AI 多智能体协作 · 人工审核关键节点</div>')
 
@@ -446,8 +573,9 @@ def create_ui() -> gr.Blocks:
 
         btn_phase2.click(fn=web.phase2_planning, outputs=outputs_10)
 
-        btn_phase3.click(fn=web.phase3_script,
-            outputs=outputs_10)
+        btn_phase3.click(fn=web.phase3_script, outputs=outputs_10)
+
+        load_btn.click(fn=web.load_project, inputs=[project_id_input], outputs=outputs_10)
 
     return app
 
