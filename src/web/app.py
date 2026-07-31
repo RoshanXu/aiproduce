@@ -303,7 +303,7 @@ class AIproduceWebUI:
                 chars_data = [{
                     "name": c.name, "core_identity": c.core_identity,
                     "core_personality": c.core_personality, "speech_style": c.speech_style or "",
-                    "core_goal": c.core_goal or "", "relationships": c.asset_json.get("relationships", []) if c.asset_json else [],
+                    "asset": c.asset_json or {},
                 } for c in chars]
                 self._chars_json = json.dumps(chars_data, ensure_ascii=False, indent=2)
 
