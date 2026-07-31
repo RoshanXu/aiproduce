@@ -111,6 +111,10 @@ class AIproduceWebUI:
             n03c = results.get("N03", {}).get("characters", {})
             n03w = results.get("N03", {}).get("world", {}).get("world", {})
             n03t = results.get("N03", {}).get("timeline", {}).get("timeline", {})
+            # 保存到实例变量，后续阶段复用
+            self._chars_json = json.dumps(n03c, ensure_ascii=False, indent=2)
+            self._world_json = json.dumps(n03w, ensure_ascii=False, indent=2)
+            self._timeline_json = json.dumps(n03t, ensure_ascii=False, indent=2)
 
             log += f"\n✅ **阶段 1 完成！**\n\n"
             log += f"| 节点 | 产出 |\n|------|------|\n"
@@ -122,17 +126,16 @@ class AIproduceWebUI:
             log += f"\n👉 **请切换到「人物资产」「世界观」「时间线」Tab 审核结果**\n"
             log += f"👉 审核通过后点击下方「审核资产库，继续策划」按钮\n"
 
-            char_text = self._load_chars()
-            world_text = self._load_world()
-            timeline_text = self._load_timeline()
-
         except Exception as e:
             import traceback
             log += f"\n❌ 阶段1失败: {e}\n```\n{traceback.format_exc()}\n```"
-            char_text = world_text = timeline_text = ""
+            self._chars_json = self._world_json = self._timeline_json = ""
 
         btns = gr.update(visible=self.phase >= 1), gr.update(visible=self.phase >= 2)
-        yield log, char_text, world_text, timeline_text, "", "", "", "", *btns
+        yield (log, getattr(self, '_chars_json', ''),
+               getattr(self, '_world_json', ''),
+               getattr(self, '_timeline_json', ''),
+               "", "", "", "", *btns)
 
     # ─── 阶段 2: N04 → N07 ──────────────────────
 
@@ -146,7 +149,7 @@ class AIproduceWebUI:
         log = "## 阶段 2/3：改编策划 + 分集大纲\n\n"
         log += "⏳ 正在生成改编策划总纲和分集大纲...\n"
         btns = gr.update(visible=self.phase >= 1), gr.update(visible=self.phase >= 2)
-        yield log, self._load_chars(), self._load_world(), self._load_timeline(), "⏳ 等待中...", "", "", "", *btns
+        yield log, getattr(self, '_chars_json', ''), getattr(self, '_world_json', ''), getattr(self, '_timeline_json', ''), "⏳ 等待中...", "", "", "", *btns
 
         try:
             from src.workflow.runner import WorkflowRunner
@@ -172,16 +175,19 @@ class AIproduceWebUI:
             log += f"\n👉 **请切换到「剧本预览」Tab 查看策划总纲**\n"
             log += f"👉 审核通过后点击下方「审核大纲，继续写剧本」按钮\n"
 
-            plan_text = self._load_plan()
-            outline_text = self._load_outline()
+            self._plan_json = json.dumps(n04, ensure_ascii=False, indent=2)
+            self._outline_json = json.dumps(n07, ensure_ascii=False, indent=2)
 
         except Exception as e:
             import traceback
             log += f"\n❌ 阶段2失败: {e}\n```\n{traceback.format_exc()}\n```"
-            plan_text = outline_text = ""
+            self._plan_json = self._outline_json = ""
 
         btns = gr.update(visible=self.phase >= 1), gr.update(visible=self.phase >= 2)
-        yield log, self._load_chars(), self._load_world(), self._load_timeline(), plan_text, outline_text, "", "", *btns
+        yield (log,
+               getattr(self, '_chars_json', ''), getattr(self, '_world_json', ''), getattr(self, '_timeline_json', ''),
+               getattr(self, '_plan_json', ''), getattr(self, '_outline_json', ''),
+               "", "", *btns)
 
     # ─── 阶段 3: N09 → N14 ──────────────────────
 
@@ -195,7 +201,7 @@ class AIproduceWebUI:
         log = "## 阶段 3/3：剧本生成 + 三重校验\n\n"
         log += "⏳ 正在拆分场次、生成剧本、执行校验...\n"
         btns = gr.update(visible=self.phase >= 1), gr.update(visible=self.phase >= 2)
-        yield log, self._load_chars(), self._load_world(), self._load_timeline(), self._load_plan(), self._load_outline(), "⏳ 生成中...", "", *btns
+        yield log, getattr(self, '_chars_json', ''), getattr(self, '_world_json', ''), getattr(self, '_timeline_json', ''), getattr(self, '_plan_json', ''), getattr(self, '_outline_json', ''), "⏳ 生成中...", "", *btns
 
         try:
             from src.workflow.runner import WorkflowRunner
@@ -224,17 +230,42 @@ class AIproduceWebUI:
             log += f"\n📂 项目ID: `{self.project_id}`\n"
             log += f"\n🎉 **全流程结束！切换到各 Tab 查看最终产出。**\n"
 
-            script_text = self._load_scripts()
-            validation_text = self._load_reports()
+            # 格式化剧本
+            scripts_md = []
+            for s in n11:
+                meta = s.get("meta", {})
+                scripts_md.append(f"## {meta.get('scene_id','?')} | {meta.get('scene_location','?')}\n\n")
+                desc = s.get("scene_description", {}).get("content", "")
+                if desc: scripts_md.append(f"▲ {desc[:300]}\n\n")
+                for item in s.get("body", [])[:20]:
+                    ch = item.get("character", "")
+                    c = item.get("content", "")
+                    scripts_md.append(f"{'**'+ch+'**：' if ch else ''}{c}\n\n")
+                scripts_md.append("\n---\n")
+            self._scripts_json = "".join(scripts_md)
+
+            # 格式化校验报告
+            reports_md = []
+            for r in (n12 + n13 + n14):
+                reports_md.append(f"### {r.get('scene_id','?')} — {r.get('verdict','?')}\n")
+                for b in r.get("blocking_issues", []):
+                    reports_md.append(f"- ❌ {b.get('detail',str(b))[:100]}\n")
+                for w in r.get("warning_issues", []):
+                    reports_md.append(f"- ⚠️ {w.get('detail',str(w))[:100]}\n")
+                reports_md.append("\n")
+            self._reports_json = "".join(reports_md)
 
         except Exception as e:
             import traceback
             log += f"\n❌ 阶段3失败: {e}\n```\n{traceback.format_exc()}\n```"
-            script_text = validation_text = ""
+            self._scripts_json = self._reports_json = ""
 
         btns = gr.update(visible=self.phase >= 1), gr.update(visible=self.phase >= 2)
-        yield (log, self._load_chars(), self._load_world(), self._load_timeline(),
-               self._load_plan(), self._load_outline(), script_text, validation_text, *btns)
+        yield (log,
+               getattr(self, '_chars_json', ''), getattr(self, '_world_json', ''), getattr(self, '_timeline_json', ''),
+               getattr(self, '_plan_json', ''), getattr(self, '_outline_json', ''),
+               getattr(self, '_scripts_json', ''), getattr(self, '_reports_json', ''),
+               *btns)
 
     # ─── 数据加载 ────────────────────────────────
 
