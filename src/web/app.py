@@ -10,6 +10,12 @@ import os
 import sys
 from pathlib import Path
 
+# 显式加载 .env（确保在 agent 导入前生效）
+from dotenv import load_dotenv
+_env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+if _env_path.exists():
+    load_dotenv(_env_path)
+
 try:
     import gradio as gr
     HAS_GRADIO = True
