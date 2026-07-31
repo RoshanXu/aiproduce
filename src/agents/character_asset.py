@@ -167,13 +167,9 @@ class CharacterAssetAgent(AgentBase):
   ]
 }}"""
 
-        import re as _re2
         response = self.call_llm(user_input=prompt)
-        json_match = _re2.search(r"\{.*\}", response, re.DOTALL)
-        if json_match:
-            result = json.loads(json_match.group())
-            return result.get("characters", result if isinstance(result, list) else [])
-        raise RuntimeError("LLM 人物构建返回格式异常，未找到有效 JSON")
+        result = self._parse_json_response(response)
+        return result.get("characters", result if isinstance(result, list) else [])
 
     def _deduplicate(self, characters: list[dict]) -> list[dict]:
         """去重合并（基于规则：名字相似度 + 身份重合度）"""

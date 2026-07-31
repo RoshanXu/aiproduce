@@ -66,6 +66,9 @@ class WorldRepository(BaseRepository):
     def get_by_project(self, project_id: str) -> Optional[WorldRecord]:
         return self.session.query(self.model).filter_by(project_id=project_id).first()
 
+    def list_by_project(self, project_id: str) -> list[WorldRecord]:
+        return self.session.query(self.model).filter_by(project_id=project_id).all()
+
 
 class TimelineRepository(BaseRepository):
     model = TimelineRecord
@@ -76,6 +79,9 @@ class TimelineRepository(BaseRepository):
 
     def get_by_project(self, project_id: str) -> Optional[TimelineRecord]:
         return self.session.query(self.model).filter_by(project_id=project_id).first()
+
+    def list_by_project(self, project_id: str) -> list[TimelineRecord]:
+        return self.session.query(self.model).filter_by(project_id=project_id).all()
 
 
 class ChunkRepository(BaseRepository):

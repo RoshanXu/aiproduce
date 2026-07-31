@@ -220,10 +220,7 @@ class DeconstructorAgent(AgentBase):
 }}"""
 
         response = self.call_llm(user_input=prompt)
-        json_match = re.search(r"\{.*\}", response, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group())
-        raise RuntimeError(f"LLM 返回格式异常，未找到有效 JSON: {response[:200]}")
+        return self._parse_json_response(response)
 
     def _generate_chapter_summary(
         self, project_id: str, chapter_title: str,

@@ -111,12 +111,8 @@ class WorldAssetAgent(AgentBase):
   }}
 }}"""
 
-        import re as _re
         response = self.call_llm(user_input=prompt)
-        json_match = _re.search(r"\{.*\}", response, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group())
-        raise RuntimeError("LLM 世界观构建返回格式异常，未找到有效 JSON")
+        return self._parse_json_response(response)
 
     def _store_world(self, project_id: str, world: dict):
         """存储世界观资产"""

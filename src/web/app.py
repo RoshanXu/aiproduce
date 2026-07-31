@@ -739,33 +739,64 @@ class AIproduceWebUI:
             return f"<pre style='color:#64748b;font-size:0.85em'>" + json.dumps(data, ensure_ascii=False, indent=2)[:800] + "</pre>"
         return f"<div class='card-grid'>{''.join(cards)}</div>"
     def _cards_plan(self, data):
-        """策划总纲 HTML — 每个章节独立卡片，长文本纵向排列"""
-        if not data: return "<p style='color:#64748b'>暂无数据</p>"
+        """策划总纲 HTML — 递归渲染任意嵌套结构为卡片"""
+        if not data:
+            return "<p style='color:#64748b'>暂无数据</p>"
+
         bp = data.get("blueprint", data)
         root = bp.get("改编策划总纲", bp)
+
+        def _render_value(v):
+            """将任意值渲染为 HTML 字符串"""
+            if isinstance(v, str):
+                return v.replace("<", "&lt;").replace(">", "&gt;")
+            if isinstance(v, (int, float, bool)):
+                return str(v)
+            if isinstance(v, list):
+                items = []
+                for item in v:
+                    if isinstance(item, dict):
+                        # 取出第一个值作为标题，其余作为 KV 行
+                        item_kvs = list(item.items())
+                        if len(item_kvs) == 1:
+                            items.append(f"<li><b>{item_kvs[0][0]}</b>：{_render_value(item_kvs[0][1])}</li>")
+                        else:
+                            first_k, first_v = item_kvs[0]
+                            inner = f"<li style='list-style:none;margin-bottom:6px'><b style='color:#334155'>{first_k}</b>：<span style='color:#475569'>{_render_value(first_v)}</span>"
+                            for k2, v2 in item_kvs[1:]:
+                                inner += f"<br><span class='c-label'>{k2}</span>：<span style='color:#475569'>{_render_value(v2)}</span>"
+                            inner += "</li>"
+                            items.append(inner)
+                    elif isinstance(item, list):
+                        items.append(f"<li>{_render_value(item)}</li>")
+                    else:
+                        items.append(f"<li>{_render_value(item)}</li>")
+                return f"<ul style='margin:4px 0;padding-left:20px'>{''.join(items)}</ul>"
+            if isinstance(v, dict):
+                rows = []
+                for sk, sv in v.items():
+                    if isinstance(sv, (list, dict)):
+                        rows.append(f"<div class='plan-field'><div class='c-label'>{sk}</div>{_render_value(sv)}</div>")
+                    else:
+                        rows.append(f"<div class='plan-field'><div class='c-label'>{sk}</div><div class='plan-value'>{_render_value(sv)}</div></div>")
+                return "".join(rows)
+            return str(v)
+
         parts = []
         for section_title, section_content in root.items():
-            if not isinstance(section_content, dict): continue
+            if not isinstance(section_content, (dict, list)):
+                parts.append(f"<div class='card plan-card'><div class='card-title'>📌 {section_title}</div><div class='plan-value'>{_render_value(section_content)}</div></div>")
+                continue
             parts.append(f"<div class='card plan-card'><div class='card-title'>📌 {section_title}</div>")
-            for k, v in section_content.items():
-                if isinstance(v, list):
-                    items_html = []
-                    for item in v:
-                        if isinstance(item, dict):
-                            name = item.get("线名", item.get("角色", item.get("新角色", "")))
-                            detail = item.get("内容", item.get("原因", item.get("功能", str(item))))
-                            items_html.append(f"<li><b>{name}</b>：{detail}</li>")
-                        else:
-                            items_html.append(f"<li>{item}</li>")
-                    parts.append(f"<div class='plan-field'><div class='c-label'>{k}</div><ul style='margin:4px 0;padding-left:16px'>{''.join(items_html)}</ul></div>")
-                elif isinstance(v, dict):
-                    sub_items = []
-                    for sk, sv in v.items():
-                        sub_items.append(f"<li><b>{sk}</b>：{sv}</li>")
-                    parts.append(f"<div class='plan-field'><div class='c-label'>{k}</div><ul style='margin:4px 0;padding-left:16px'>{''.join(sub_items)}</ul></div>")
-                else:
-                    parts.append(f"<div class='plan-field'><div class='c-label'>{k}</div><div class='plan-value'>{v}</div></div>")
+            if isinstance(section_content, list):
+                parts.append(_render_value(section_content))
+            else:
+                for k, v in section_content.items():
+                    parts.append(f"<div class='plan-field'><div class='c-label'>{k}</div>")
+                    parts.append(_render_value(v))
+                    parts.append("</div>")
             parts.append("</div>")
+
         if not parts:
             return f"<pre style='color:#64748b;font-size:0.85em'>{json.dumps(bp, ensure_ascii=False, indent=2)[:1500]}</pre>"
         return "".join(parts)

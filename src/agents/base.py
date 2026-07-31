@@ -62,10 +62,12 @@ class AgentBase(ABC):
         model_name: str = "claude-sonnet-5",
         max_retries: int = 3,
         temperature: float = 0.7,
+        max_tokens: int = 8192,
     ):
         self.model_name = model_name
         self.max_retries = max_retries
         self.temperature = temperature
+        self.max_tokens = max_tokens
         self._llm = None
 
     def _get_llm(self):
@@ -99,7 +101,7 @@ class AgentBase(ABC):
                 self._llm = ChatAnthropic(
                     model=self.model_name,
                     temperature=self.temperature,
-                    max_tokens=8192,
+                    max_tokens=self.max_tokens,
                 )
             elif HAS_ANTHROPIC:
                 self._llm = anthropic.Anthropic(api_key=key)
@@ -116,7 +118,7 @@ class AgentBase(ABC):
             self._llm = ChatOpenAI(
                 model=self.model_name,
                 temperature=self.temperature,
-                max_tokens=8192,
+                max_tokens=self.max_tokens,
             )
 
         else:
@@ -214,7 +216,7 @@ class AgentBase(ABC):
         llm = self._get_llm()
         response = llm.messages.create(
             model=self.model_name,
-            max_tokens=8192,
+            max_tokens=self.max_tokens,
             temperature=self.temperature,
             system=system_prompt or "你是一个专业的小说改剧本AI助手。请严格按照指令输出结构化内容。",
             messages=[{"role": "user", "content": user_input}],
@@ -236,6 +238,95 @@ class AgentBase(ABC):
             model=self.model_name,
         )
         return content
+
+    @staticmethod
+    def _parse_json_response(response: str) -> dict:
+        """从 LLM 响应中提取并解析 JSON，自动修复常见格式问题。
+
+        按优先级尝试：
+        1. 直接解析
+        2. 去除尾部逗号
+        3. 修复无引号 key / 单引号字符串
+        4. 按花括号深度提取有效 JSON 片段
+
+        Raises:
+            RuntimeError: 所有修复手段均失败时抛出
+        """
+        # Step 1: 提取 JSON 块（优先匹配 markdown code block）
+        json_str = response
+        code_match = re.search(r"```(?:json)?\s*\n?(.*?)```", response, re.DOTALL)
+        if code_match:
+            json_str = code_match.group(1).strip()
+        else:
+            brace_match = re.search(r"\{.*\}", response, re.DOTALL)
+            if brace_match:
+                json_str = brace_match.group()
+            else:
+                raise RuntimeError("LLM 响应中未找到有效 JSON 结构")
+
+        # Step 2: 依次尝试解析 + 修复
+        last_error = None
+        for attempt, repair_fn in enumerate([
+            lambda s: s,                                                    # 0: 直接解析
+            lambda s: re.sub(r",\s*([}\]])", r"\1", s),                    # 1: 去尾部逗号
+            lambda s: re.sub(r",\s*([}\]])", r"\1",                        # 2: 去尾部逗号 + 加引号 key
+                             re.sub(r'(?<=\{)\s*(\w+)\s*:', r'"\1":', s)),
+            lambda s: re.sub(r",\s*([}\]])", r"\1",                        # 3: 去尾部逗号 + 加引号 key + 单引号→双引号
+                             re.sub(r"'([^']*)'", r'"\1"',
+                             re.sub(r'(?<=\{)\s*(\w+)\s*:', r'"\1":', s))),
+        ]):
+            try:
+                repaired = repair_fn(json_str)
+                return json.loads(repaired)
+            except json.JSONDecodeError as e:
+                last_error = e
+                continue
+
+        # Step 4: 最后手段 — 按花括号深度提取第一个完整 JSON 对象
+        try:
+            depth = 0
+            start = json_str.find("{")
+            if start >= 0:
+                for i in range(start, len(json_str)):
+                    if json_str[i] == "{":
+                        depth += 1
+                    elif json_str[i] == "}":
+                        depth -= 1
+                        if depth == 0:
+                            truncated = json_str[start:i+1]
+                            truncated = re.sub(r",\s*([}\]])", r"\1", truncated)
+                            return json.loads(truncated)
+        except json.JSONDecodeError as e:
+            last_error = e
+
+        # 构建详细错误信息
+        err_pos = last_error.pos if last_error else 0
+        total_len = len(json_str)
+        ctx_start = max(0, err_pos - 200)
+        ctx_end = min(total_len, err_pos + 200)
+        context = json_str[ctx_start:ctx_end]
+        truncated_hint = ""
+        if total_len > 0:
+            # 检查是否被截断：花括号不匹配
+            braces = 0
+            for ch in json_str:
+                if ch == "{": braces += 1
+                elif ch == "}": braces -= 1
+            if braces > 0:
+                truncated_hint = (
+                    f"\n⚠️ 疑似 LLM 输出被截断！"
+                    f"\n   JSON 长度: {total_len} 字符"
+                    f"\n   未闭合花括号: {braces} 个"
+                    f"\n   → 尝试增大该 Agent 的 max_tokens 参数"
+                )
+
+        raise RuntimeError(
+            f"LLM 返回 JSON 格式异常，所有修复手段均失败。"
+            f"\n   总长度: {total_len} 字符, 错误位置: 第 {err_pos} 字符附近"
+            f"\n   最后错误: {last_error}"
+            f"{truncated_hint}"
+            f"\n   错误位置上下文:\n···{context}···"
+        )
 
     @staticmethod
     def _validate_json(content: str, schema: dict) -> Optional[str]:

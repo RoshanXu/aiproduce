@@ -46,10 +46,7 @@ class SceneWriterAgent(AgentBase):
             context = self._load_scene_context(project_id, scene_card)
 
             # 生成剧本
-            if self.prompt_template:
-                script = self._llm_write(context)
-            else:
-                script = self._template_write(context)
+            script = self._llm_write(context)
 
             # 保存
             self._save_script(project_id, scene_id, script)
@@ -122,53 +119,8 @@ class SceneWriterAgent(AgentBase):
 输出标准格式剧本 JSON。
 """
 
-        try:
-            response = self.call_llm(user_input=prompt)
-            json_match = re.search(r"\{.*\}", response, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-        except Exception as e:
-            node_logger.warn(f"LLM 剧本生成失败: {e}")
-
-        return self._template_write(context)
-
-    def _template_write(self, context: dict) -> dict:
-        """模板剧本（降级方案）"""
-        scene_id = context.get("scene_id", "")
-        chars = context.get("character_profiles", [])
-        main_char = chars[0] if chars else {"name": "主角", "char_id": "CHAR-001"}
-
-        body_lines = [
-            {"prefix": "▲", "content": f"{main_char['name']}站在{context.get('scene_location', '场景')}中，环顾四周。手指无意识地敲击着腰间的剑柄。"},
-            {"character": main_char['name'], "content": f"（低声）这里不对劲。", "performance_note": "警觉地环视"},
-        ]
-
-        if len(chars) > 1:
-            second = chars[1]
-            body_lines.append({"prefix": "▲", "content": f"{second['name']}走上前，与{main_char['name']}并肩而立。"})
-            body_lines.append({"character": second['name'], "content": "少主，要不要我去查看？"})
-
-        body_lines.append({"prefix": "▲", "content": f"{main_char['name']}抬手制止。目光锁定在前方的阴影处。"})
-        body_lines.append({"prefix": "★", "transition_type": "切"})
-
-        return {
-            "meta": {
-                "scene_id": scene_id,
-                "scene_location": context.get("scene_location", "待设定"),
-                "scene_time": context.get("scene_time", "日"),
-                "characters_in_scene": ", ".join(c["name"] for c in chars),
-            },
-            "scene_description": {
-                "content": f"{context.get('scene_location', '场景')}。{context.get('scene_time', '日')}光透过缝隙洒入，空气中弥漫着紧张的气息。",
-                "time_relation": "承接前场，时间连续",
-            },
-            "body": body_lines,
-            "transition": {"prefix": "★", "transition_type": "切"},
-            "info_increment_check": context.get("core_info_increment", ""),
-            "adaptation_notes": "（模板生成，待LLM精修）",
-            "version": "1.0",
-            "status": "draft",
-        }
+        response = self.call_llm(user_input=prompt)
+        return self._parse_json_response(response)
 
     def _save_script(self, project_id: str, scene_id: str, script: dict):
         """保存剧本"""

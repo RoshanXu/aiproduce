@@ -150,7 +150,8 @@ class WorkflowRunner:
         thin_slice_scenes = scenes[:3]  # Thin Slice 只生成前3场
         n11_results = []
         for i, scene in enumerate(thin_slice_scenes):
-            print(f"  ├─ 生成 {scene['scene_id']} ({i+1}/{len(thin_slice_scenes)})...")
+            sid = scene.get("scene_id") or scene.get("id") or f"SCENE-{i+1:03d}"
+            print(f"  ├─ 生成 {sid} ({i+1}/{len(thin_slice_scenes)})...")
             n11 = self._run_n11(project_id=project_id, scene_card=scene, model_name=model_name)
             n11_results.append(n11)
         self.state.set_node_status("N11", NodeStatus.PASSED)

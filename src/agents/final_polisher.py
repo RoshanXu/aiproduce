@@ -209,12 +209,8 @@ class FinalPolisherAgent(AgentBase):
   "rewrite_recommendation": null
 }}"""
 
-        import re
         response = self.call_llm(user_input=prompt)
-        json_match = re.search(r"\{.*\}", response, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group())
-        raise RuntimeError("LLM 单集统稿返回格式异常，未找到有效 JSON")
+        return self._parse_json_response(response)
 
     def _llm_polish_global(
         self, scenes: list[dict], assets: dict,
@@ -262,12 +258,8 @@ class FinalPolisherAgent(AgentBase):
   "final_verdict": "PASS | NEEDS_REVISION"
 }}"""
 
-        import re
         response = self.call_llm(user_input=prompt)
-        json_match = re.search(r"\{.*\}", response, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group())
-        raise RuntimeError("LLM 全剧统稿返回格式异常，未找到有效 JSON")
+        return self._parse_json_response(response)
 
     # ─── 辅助方法 ────────────────────────────────
 

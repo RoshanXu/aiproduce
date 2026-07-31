@@ -23,7 +23,7 @@ class AdaptationPlannerAgent(AgentBase):
     node_name = "改编策划Agent"
 
     def __init__(self, model_name: str = "claude-sonnet-5"):
-        super().__init__(model_name=model_name, temperature=0.7)
+        super().__init__(model_name=model_name, temperature=0.7, max_tokens=16384)
         self._load_prompt()
 
     def _load_prompt(self):
@@ -100,12 +100,8 @@ class AdaptationPlannerAgent(AgentBase):
         """LLM 生成改编策划总纲"""
         prompt = self._build_prompt(context)
 
-        import re as _re
         response = self.call_llm(user_input=prompt)
-        json_match = _re.search(r"\{.*\}", response, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group())
-        raise RuntimeError("LLM 改编策划返回格式异常，未找到有效 JSON")
+        return self._parse_json_response(response)
 
     def _build_prompt(self, context: dict) -> str:
         """构建 LLM prompt"""

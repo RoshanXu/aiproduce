@@ -74,26 +74,55 @@ class CharacterCheckerAgent(AgentBase):
         return report
 
     def _llm_check(self, script: dict, char_profiles: dict, scene_id: str) -> dict:
-        """LLM 校验"""
+        """LLM 人设一致性校验"""
         body_text = json.dumps(script.get("body", []), ensure_ascii=False, indent=2)
 
-        prompt = f"""校验以下剧本的人设一致性。
+        # 构建人物设定文本（含弧光、关系、内心冲突）
+        char_detail = ""
+        for cid, cp in char_profiles.items():
+            aj = cp.get("asset_json", {})
+            char_detail += (
+                f"  [{cp['name']}] 性格:{cp.get('core_personality','')} | 语言风格:{cp.get('speech_style','')}\n"
+                f"    弧光:{aj.get('character_arc','')} | 内心冲突:{aj.get('inner_conflict','')}\n"
+                f"    核心诉求:{aj.get('core_goal','')} | 关系:{json.dumps(aj.get('relationships',{}), ensure_ascii=False)}\n"
+                f"    标志行为:{aj.get('signature_behaviors','')} | 关键经历:{'; '.join(aj.get('key_experiences',[])[:3])}\n\n"
+            )
+        char_detail = char_detail[:2500]
 
-## 人物设定
-{json.dumps(char_profiles, ensure_ascii=False, indent=2)[:2000]}
+        prompt = f"""严格校验以下场次剧本的人物一致性。每项违规必须标记为 blocking（阻塞）或 warning（警告）。
 
-## 剧本内容
-{body_text[:2000]}
+## 人物资产库（唯一标准）
+{char_detail}
 
-按五维校验标准（行为逻辑/语言风格/称谓习惯/人物关系/状态时间线）输出分级校验报告JSON。
-"""
+## 待校验剧本
+场景ID: {scene_id}
+{body_text[:2500]}
 
-        import re as _re
+## 六维校验标准（逐项检查，不可跳过）
+1. **行为逻辑**：角色的每个行动是否符合其性格设定和核心诉求？行为是否与弧光阶段一致？
+2. **语言风格**：台词是否符合该角色的语言风格和标志性口头禅？称谓习惯是否与人物关系和时代背景一致？
+3. **人物关系**：角色互动是否符合已设定的人物关系？关系进展是否过快或出现矛盾？
+4. **弧光推进**：本场人物的状态变化是否在其弧光轨迹上？是否出现跳跃或倒退（非设计内的情况才算违规）？
+5. **内心冲突**：角色的决策和行为是否反映了其内心冲突？是否出现与内心冲突完全矛盾的行为？
+6. **跨场状态连续**：如果前场结尾该角色处于状态A，本场开头不能直接跳到状态C（除非剧情明确展示了中间变化）
+
+输出JSON格式（仅JSON）：
+{{
+  "scene_id": "{scene_id}",
+  "verdict": "PASS | NEEDS_REVISION | NEEDS_REWRITE",
+  "blocking_issues": [
+    {{"dimension": "六维名称", "character": "角色名", "detail": "具体违规描述和剧本原文引用", "expected": "应该怎样"}}
+  ],
+  "warning_issues": [
+    {{"dimension": "六维名称", "character": "角色名", "detail": "轻微偏差描述", "suggestion": "建议修改方案"}}
+  ],
+  "arc_progress_check": {{"角色名": {{"current_arc_stage": "当前所处弧光阶段", "is_on_track": true, "note": "说明"}}}},
+  "character_voice_score": {{"角色名": "A/B/C/D (台词一致性评分)"}},
+  "overall_score": 5
+}}"""
+
         response = self.call_llm(user_input=prompt)
-        json_match = _re.search(r"\{.*\}", response, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group())
-        raise RuntimeError("LLM 人设校验返回格式异常，未找到有效 JSON")
+        return self._parse_json_response(response)
 
     def _save_report(self, project_id: str, scene_id: str, report: dict):
         """保存校验报告"""
